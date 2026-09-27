@@ -1,0 +1,39 @@
+name: Automatic setup
+on:
+  push:
+    paths: ['run.ps1', 'run.sh', 'requirements.txt', '.github/workflows/bootstrap.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  setup:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows without developer tools
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $env:CLIPHARBOR_BOOTSTRAP_DIR = Join-Path $env:RUNNER_TEMP 'clipharbor-bootstrap'
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+          Remove-Item Env:\CONDA_PREFIX -ErrorAction SilentlyContinue
+          ./run.ps1 -InstallRepository -SetupOnly
+          ./run.ps1 -InstallRepository -SetupOnly
+      - name: Unix with missing developer tools simulated
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          export CLIPHARBOR_BOOTSTRAP_DIR="$RUNNER_TEMP/clipharbor-bootstrap"
+          mkdir -p "$RUNNER_TEMP/unavailable-tools"
+          chmod +x tests/unavailable-tool.sh
+          for tool in git python python3 ffmpeg ffprobe node; do
+            ln -s "$GITHUB_WORKSPACE/tests/unavailable-tool.sh" "$RUNNER_TEMP/unavailable-tools/$tool"
+          done
+          export PATH="$RUNNER_TEMP/unavailable-tools:$PATH"
+          bash ./run.sh --install --setup-only
+          bash ./run.sh --install --setup-only

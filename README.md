@@ -40,6 +40,9 @@ Windows security. Download only from this repository's releases. See
 
 ### Windows / PowerShell
 
+The commands below are the **manual source setup** for people who already have
+development tools. For automatic setup, see [zero-prerequisite terminal install](#zero-prerequisite-terminal-install).
+
 Install [Python](https://www.python.org/downloads/) 3.10+, [Git](https://git-scm.com/downloads),
 [FFmpeg](https://ffmpeg.org/download.html) (including ffprobe), and
 [Node.js](https://nodejs.org/en/download) 22+. Ensure their commands are on PATH,
@@ -105,7 +108,8 @@ Python `-m pip install -U -r requirements.txt` command. Saved projects and cache
 media are ignored by Git and stay local. Back up projects and original media yourself.
 
 This is a Python application, not an npm package. npm is not required and would
-not remove the Python/FFmpeg prerequisites for a source installation.
+not remove the underlying runtime requirements. The automatic setup below handles
+those requirements for you without needing npm.
 
 Run the regression tests from an environment with FFmpeg on PATH:
 
@@ -114,6 +118,91 @@ python -m pip install -r requirements.txt pytest
 python -m pytest -q
 node tests/timeline_regressions.cjs
 ```
+
+## Zero-prerequisite terminal install
+
+**Open a terminal, paste the block for your computer, and wait for the browser to
+open. You do not need to install any development tools first.** First setup needs
+internet and may take several minutes. Run the same block again to reopen the app;
+working components are reused. Keep the terminal open while using ClipHarbor,
+then press Ctrl+C in it when finished.
+
+These commands download and run this repository's setup script. Only run them if
+you trust this repository; the scripts are available to inspect as
+[run.ps1](run.ps1) and [run.sh](run.sh). They install Git if needed, obtain the app,
+set up its missing components in your user account, and launch it. They do not
+change your shell profile or system-wide PATH, and do not overwrite an existing
+checkout with unrelated contents. No administrator access is needed for normal
+setup. The Linux fallback below may ask for your password to install a missing
+download utility; all remaining setup is user-local.
+
+### Windows — automatic setup
+
+Open **PowerShell** and paste:
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$setup = (Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/CarlFriGauss/clipharbor/main/run.ps1').Content
+& ([scriptblock]::Create($setup)) -InstallRepository
+```
+
+Windows 10/11 x64. No permanent execution-policy change is needed.
+
+### macOS — automatic setup
+
+Open **Terminal** and paste (Intel and Apple Silicon):
+
+```sh
+setup_file=$(mktemp)
+curl -fL --retry 3 https://raw.githubusercontent.com/CarlFriGauss/clipharbor/main/run.sh -o "$setup_file" && bash "$setup_file" --install
+```
+
+### Linux — automatic setup
+
+Open a terminal and paste. Supports glibc-based desktop distributions on x64 or
+ARM64; Alpine/musl is not supported by this automatic path. The app needs a
+desktop/browser for its normal interface.
+
+```sh
+(
+  set -e
+  if ! command -v curl >/dev/null && ! command -v wget >/dev/null; then
+    echo 'Installing a download helper; your system may ask for your password.'
+    if command -v apt-get >/dev/null; then sudo apt-get update && sudo apt-get install -y curl ca-certificates
+    elif command -v dnf >/dev/null; then sudo dnf install -y curl ca-certificates
+    elif command -v pacman >/dev/null; then sudo pacman -S --needed curl ca-certificates
+    elif command -v zypper >/dev/null; then sudo zypper install -y curl ca-certificates
+    else echo 'Install curl using your system package manager, then rerun this block.'; exit 1; fi
+  fi
+  setup_file=$(mktemp)
+  if command -v curl >/dev/null; then curl -fL --retry 3 https://raw.githubusercontent.com/CarlFriGauss/clipharbor/main/run.sh -o "$setup_file"
+  else wget -O "$setup_file" https://raw.githubusercontent.com/CarlFriGauss/clipharbor/main/run.sh; fi
+  bash "$setup_file" --install
+)
+```
+
+### Already downloaded the repository?
+
+Run `./run.ps1` in PowerShell, or `bash ./run.sh` on macOS/Linux. These also check
+for missing tools and install them; they are not just launch shortcuts.
+
+Automatic setup uses a checksum-pinned [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
+helper and only the conda-forge channel for missing Git, runtime, media tools, or
+JavaScript runtime. App packages live in the checkout's `.venv`. System tools
+that pass checks are reused; the managed installation is only for missing or
+unusable components. Nothing is installed into your system Python or existing
+Conda environment. Package installations may pull in their own dependencies.
+
+Storage: `%LOCALAPPDATA%\ClipHarbor\bootstrap` on Windows;
+`${XDG_DATA_HOME:-~/.local/share}/clipharbor/bootstrap` on macOS/Linux. The cloned
+app and its source-mode projects are under `source` there. Do not delete that
+folder without backing up saved projects. `CLIPHARBOR_BOOTSTRAP_DIR` can override
+the location. Installer projects and source-mode projects are separate.
+
+Rerunning setup does not silently update or discard your source changes. To update
+the app, use `git pull --ff-only` in its checkout. To refresh download support,
+run `./run.ps1 -UpdateDependencies` or `bash ./run.sh --update-dependencies`.
+Maintainers can use `-SetupOnly` / `--setup-only` to verify setup without launching.
 
 ## Editor model
 
