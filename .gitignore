@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.playwright-cli/
+output/
+projects/
+.firecrawl/
+.env
+.env.*
+*.log
+cookies*.txt
+node_modules/
+# Local diagnostics referencing private recordings; not part of the application.
+tests/browser_*_check.js
+tests/check_reported_exports.py
+tests/diagnose_audio_content.py
+tests/verify_recording_exports.py
+.cache/
+.build-env/
+.build-tools/
+build/
+dist/
+packaging/vendor/

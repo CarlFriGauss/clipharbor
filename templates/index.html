@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0d12">
+  <title>ClipHarbor</title>
+  <link rel="icon" href="{{ url_for('static', filename='carl-logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.5.0') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="ClipHarbor home">
+      <img class="brand-mark" src="{{ url_for('static', filename='carl-logo.png') }}" alt="Carl Friedrich Gauss LEGO portrait" width="36" height="36">
+      <span>ClipHarbor<small>Download · Edit · Export</small></span>
+    </a>
+    <nav class="nav-tabs" aria-label="Application sections">
+      <button class="nav-tab active" data-view="download">Download</button>
+      <button class="nav-tab" data-view="editor">Editor</button>
+      <button class="nav-tab" data-view="jobs">Activity <span id="jobCount" class="count hidden">0</span></button>
+    </nav>
+    <div class="system-pill"><span class="status-dot"></span><span id="systemStatus">Checking tools</span></div>
+    <button id="quitApp" class="button ghost hidden" title="Stop the local app. Closing a tab alone leaves downloads running.">Quit app</button>
+  </header>
+
+  <main>
+    <section id="downloadView" class="view active">
+      <div class="hero">
+        <div>
+          <p class="eyebrow">Universal media workspace</p>
+          <h1>Bring the best version<br>of any media home.</h1>
+          <p class="hero-copy">Inspect, download, convert, and continue directly into a real FFmpeg timeline.</p>
+        </div>
+        <div class="source-orbit" aria-hidden="true">
+          <span class="orbit-core"><img src="{{ url_for('static', filename='carl-logo.png') }}" alt=""></span>
+          <span class="source-chip yt">▶</span><span class="source-chip x">𝕏</span>
+          <span class="source-chip ig">◎</span><span class="source-chip web">⌁</span>
+        </div>
+      </div>
+
+      <div class="download-grid">
+        <section class="card download-card">
+          <div class="card-heading">
+            <div><p class="step">01</p><h2>Source</h2></div>
+            <span class="hint">YouTube, X, Instagram, TikTok, Facebook + 1,000 sites</span>
+          </div>
+          <label class="field-label" for="urlInput">Media URL</label>
+          <div class="url-row">
+            <input id="urlInput" type="url" placeholder="Paste a public media URL…" autocomplete="off">
+            <button id="inspectButton" class="button secondary">Inspect</button>
+          </div>
+          <div id="sourcePreview" class="source-preview empty">
+            <div class="preview-placeholder"><span>⌁</span><p>Media details will appear here before anything downloads.</p></div>
+          </div>
+        </section>
+
+        <section class="card options-card">
+          <div class="card-heading"><div><p class="step">02</p><h2>Output</h2></div></div>
+          <div class="form-grid">
+            <label class="field"><span>Format</span>
+              <select id="formatSelect">
+                <option value="mp4" selected>MP4 · final video, no editor required</option>
+                <option value="original">Original source quality · source container</option>
+                <option value="mkv">MKV · lossless remux</option>
+                <option value="webm">WebM · web optimized</option>
+                <option value="mov">MOV · editing compatible</option>
+                <option value="mp3">MP3 · audio only</option>
+                <option value="m4a">M4A · high quality audio</option>
+                <option value="wav">WAV · uncompressed audio</option>
+              </select>
+            </label>
+            <label id="audioTrackField" class="field hidden"><span>Audio track</span>
+              <select id="audioTrackSelect"><option value="">Automatic / source default</option></select>
+              <small class="field-help">Choose an original or dubbed language found in this video.</small>
+            </label>
+            <label class="field"><span>Output folder</span>
+              <div class="path-row"><input id="outputPath" type="text"><button id="browseOutput" class="icon-button" title="Choose folder">…</button></div>
+            </label>
+          </div>
+          <label id="xOption" class="option-toggle" for="xCompatible">
+            <input id="xCompatible" type="checkbox">
+            <span class="toggle-ui"></span>
+            <span><strong>Make it X compatible</strong><small>Probe first; only convert streams that need it.</small></span>
+            <span class="x-badge">𝕏</span>
+          </label>
+          <details class="advanced">
+            <summary>Authenticated source options</summary>
+            <p>Use an exported cookies file only when a site requires login. Treat it like a password.</p>
+            <div class="path-row"><input id="cookiePath" placeholder="No cookies file (recommended)"><button id="browseCookies" class="button ghost">Choose file</button></div>
+          </details>
+          <button id="downloadButton" class="button primary wide"><span>Download best quality</span><span>↓</span></button>
+        </section>
+      </div>
+    </section>
+
+    <section id="editorView" class="view editor-view">
+      <div class="editor-toolbar">
+        <div class="project-heading"><p class="eyebrow">Non-destructive editor</p><h1 id="projectTitle">Untitled project</h1><span id="projectStatus">Not saved</span></div>
+        <div class="toolbar-actions">
+          <button id="newProject" class="button ghost">New</button>
+          <button id="openProject" class="button ghost">Open</button>
+          <button id="saveProject" class="button secondary">Save project</button>
+          <button id="openMedia" class="button secondary">＋ Add media</button>
+          <button id="exportButton" class="button primary">Export project</button>
+        </div>
+      </div>
+
+      <div class="editor-shell">
+        <aside class="asset-panel panel">
+          <div class="panel-title"><h3>Media</h3><span id="assetCount">0 files</span></div>
+          <div id="assetList" class="asset-list">
+            <button id="emptyAssetButton" class="empty-assets"><span>＋</span><strong>Add video or audio</strong><small>Sources remain untouched</small></button>
+          </div>
+        </aside>
+
+        <section class="preview-panel panel">
+          <div id="playerStage" class="player-stage">
+            <div id="playerEmpty" class="player-empty"><span>▶</span><p>Select a source or timeline clip</p></div>
+            <video id="videoPlayer" class="media-player hidden" controls playsinline></video>
+            <audio id="audioPlayer" class="audio-player hidden" controls></audio>
+            <div id="timelinePreviewHud" class="timeline-preview-hud hidden"><span>♫</span><strong>Audio timeline</strong><output id="previewPosition">00:00.00</output><small>Use the timeline controls below to play, seek, and cut.</small></div>
+          </div>
+          <div class="preview-controls">
+            <div class="preview-meta"><span id="previewName">No media selected</span><span id="previewInfo">—</span></div>
+            <button id="cutAtPlayer" class="tool-button scissors" title="Cut selected layers at the player position (S)" aria-label="Cut at player position">✂</button>
+          </div>
+        </section>
+
+        <aside class="inspector-panel panel">
+          <div class="panel-title"><h3>Inspector</h3><span id="selectionLabel">No selection</span></div>
+          <div id="inspectorEmpty" class="inspector-empty">Select one or more sections. Changes apply to every selected section.</div>
+          <div id="clipInspector" class="clip-inspector hidden">
+            <div id="multiSelectionNotice" class="multi-selection hidden"></div>
+            <div class="property-grid">
+              <label>Timeline start<input data-prop="start" type="number" min="0" step="0.01"></label>
+              <label>Layer<input data-prop="layer" type="number" min="1" max="20" step="1"></label>
+              <label>Source in<input data-prop="in" type="number" min="0" step="0.01"></label>
+              <label>Source out<input data-prop="out" type="number" min="0" step="0.01"></label>
+              <label>Speed<select data-prop="speed"><option value="0.25">.25</option><option value="0.5">.5</option><option value="0.75">.75</option><option value="1" selected>1</option><option value="1.25">1.25</option><option value="1.5">1.5</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
+              <label>Volume<input data-prop="volume" type="number" min="0" max="4" step="0.05"></label>
+            </div>
+            <label class="check-row"><input data-prop="muted" type="checkbox"> Mute this section</label>
+            <div class="inspector-actions"><button id="copySelectionInspector" class="button secondary">Copy</button><button id="deleteClip" class="button danger">Remove</button></div>
+          </div>
+        </aside>
+      </div>
+
+      <div id="panelDivider" class="panel-divider" role="separator" aria-label="Resize preview and timeline" aria-orientation="horizontal" tabindex="0"></div>
+      <section class="timeline-panel panel">
+        <div class="timeline-toolbar">
+          <div class="transport"><button id="jumpStart" class="icon-button" title="Go to start">|◀</button><button id="playPause" class="play-button" title="Play / pause (Space)">▶</button><input id="positionInput" aria-label="Playhead time" title="Exact position: HH:MM:SS.mmm or seconds. Arrow keys step 0.01 seconds; Shift steps 1 second." value="00:00.000"><span id="timeDisplay">/ 00:00.00</span></div>
+          <div class="edit-tools" aria-label="Editing tools">
+            <button id="undoButton" class="tool-button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+            <button id="redoButton" class="tool-button" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
+            <span class="tool-divider"></span>
+            <button id="cutSelection" class="tool-button scissors" title="Cut at playhead (S)" aria-label="Cut at playhead">✂</button>
+            <button id="copySelection" class="tool-button" title="Copy selected sections (Ctrl+C)" aria-label="Copy selected sections">⧉</button>
+            <button id="pasteSelection" class="tool-button" title="Paste at playhead (Ctrl+V)" aria-label="Paste sections">▣</button>
+            <button id="removeSelection" class="tool-button danger-tool" title="Remove selected sections (Delete)" aria-label="Remove selected sections">⌫</button>
+            <button id="rippleDelete" class="tool-button" title="Remove and close gaps" aria-label="Ripple delete selected sections">⇤</button>
+            <span class="tool-divider"></span>
+            <button id="snapToggle" class="tool-button active" title="Toggle edge snapping" aria-label="Toggle snapping">⌁</button>
+            <button id="autoBalanceToggle" class="tool-button active" title="Auto-balance added audio under video sound" aria-label="Toggle automatic audio balancing">⚖</button>
+            <label class="empty-track-toggle"><input id="showEmptyTracks" type="checkbox"> Empty layers</label>
+          </div>
+          <div class="timeline-actions"><button id="addVideoClip" class="button ghost">＋ Video</button><button id="addAudioClip" class="button ghost">＋ Audio</button><button id="addVideoLayer" class="tool-button" title="Add video layer">V＋</button><button id="addAudioLayer" class="tool-button" title="Add audio layer">A＋</button><button id="fitTimeline" class="tool-button fit-tool" title="Fit the whole timeline">↔</button><label>Zoom <input id="timelineZoom" type="range" min="0" max="100" value="80"></label></div>
+        </div>
+        <div id="timelineScroller" class="timeline-scroller">
+          <div id="timeline" class="timeline">
+            <div class="ruler-row"><div class="ruler-corner">TIME</div><div id="ruler" class="ruler"></div></div>
+            <div id="tracks" class="tracks"></div>
+            <div id="playhead" class="playhead"><span></span></div>
+            <div id="snapGuide" class="snap-guide hidden"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="jobsView" class="view jobs-view">
+      <div class="page-heading"><div><p class="eyebrow">Background work</p><h1>Activity</h1></div><p>Downloads and renders continue while you work.</p></div>
+      <div id="jobsList" class="jobs-list"><div class="empty-jobs">No activity yet.</div></div>
+    </section>
+  </main>
+
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+
+  <dialog id="completeDialog" class="complete-dialog">
+    <button class="dialog-close" data-close-dialog>×</button>
+    <span class="success-icon">✓</span>
+    <p class="eyebrow">Ready</p><h2 id="completeTitle">Download complete</h2>
+    <p id="completeMessage"></p>
+    <code id="completePath" class="complete-path"></code>
+    <div class="dialog-actions"><button data-close-dialog class="button secondary">Done — use this file</button><button id="revealResult" class="button secondary">Open folder</button><button id="editResult" class="button primary">Edit as new project</button></div>
+  </dialog>
+
+  <dialog id="exportDialog" class="export-dialog">
+    <button class="dialog-close" data-close-dialog>×</button>
+    <p class="eyebrow">FFmpeg render</p><h2>Export project</h2>
+    <p id="exportDuration" class="dialog-help"></p>
+    <div class="form-grid export-grid">
+      <label class="field"><span>File name</span><input id="exportName" value="ClipHarbor export"></label>
+      <label class="field"><span>Format</span><select id="exportFormat"><option value="mp4">MP4</option><option value="x_mp4">X compatible MP4 · highest quality</option><option value="mkv">MKV</option><option value="webm">WebM</option><option value="mov">MOV</option><option value="mp3">MP3</option><option value="m4a">M4A</option><option value="wav">WAV</option></select></label>
+      <label class="field full"><span>Output folder</span><div class="path-row"><input id="exportPath"><button id="browseExport" class="icon-button">…</button></div></label>
+      <label class="field"><span>Canvas</span><select id="exportCanvas"><option value="source" selected>Source / highest resolution</option><option value="1920x1080">1920 × 1080</option><option value="1280x720">1280 × 720</option><option value="1080x1920">1080 × 1920</option><option value="1080x1080">1080 × 1080</option><option value="3840x2160">3840 × 2160</option></select></label>
+      <label class="field"><span>Frame rate</span><select id="exportFps"><option value="source" selected>Source / highest FPS</option><option>24</option><option>30</option><option>50</option><option>60</option><option>120</option></select></label>
+      <label class="field"><span>Quality</span><select id="exportQuality"><option value="master" selected>Master · visually lossless</option><option value="high">High · smaller</option><option value="compact">Compact</option></select></label>
+      <label class="option-toggle compact-option" for="saveProjectFile"><input id="saveProjectFile" type="checkbox"><span class="toggle-ui"></span><span><strong>Save editable project file</strong><small>Adds .mediaforge.json beside the media.</small></span></label>
+      <div id="xExportNote" class="x-export-note full hidden"><strong>X preset controls quality automatically</strong><span>Highest source-based resolution up to X limits, up to 40 FPS, H.264 High/yuv420p, AAC-LC stereo, fast-start MP4, and a safe maximum bitrate. The completed file is validated before success.</span></div>
+    </div>
+    <button id="startExport" class="button primary wide">Start render</button>
+  </dialog>
+
+  <dialog id="saveProjectDialog" class="project-dialog">
+    <button class="dialog-close" data-close-dialog>×</button>
+    <p class="eyebrow">Continue later</p><h2>Save project</h2>
+    <label class="field project-name-field"><span>Project name</span><input id="projectNameInput" maxlength="120" placeholder="Project One"></label>
+    <p class="dialog-help">The timeline, media references, layers, cuts, and mix settings are saved. Source files remain where they are.</p>
+    <button id="confirmSaveProject" class="button primary wide">Save project</button>
+  </dialog>
+
+  <dialog id="projectBrowserDialog" class="project-dialog project-browser-dialog">
+    <button class="dialog-close" data-close-dialog>×</button>
+    <p class="eyebrow">Saved work</p><h2>Open a project</h2>
+    <div id="projectList" class="project-list"></div>
+  </dialog>
+
+  <script src="{{ url_for('static', filename='app.js', v='0.5.0') }}" defer></script>
+</body>
+</html>
