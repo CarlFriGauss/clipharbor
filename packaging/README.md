@@ -2,7 +2,10 @@
 
 This is the existing ClipHarbor application, not a rewrite. PyInstaller makes a
 windowless one-folder application; Inno Setup wraps it in a per-user installer.
-The browser remains the interface. Python, Node, FFmpeg and ffprobe are bundled.
+The browser remains the interface. Python and Node are bundled. A graphical
+first-run setup fetches FFmpeg/ffprobe directly from the upstream distributor,
+checks pinned archive and binary hashes, and installs them in per-user app data.
+No terminal is needed. Network access is required for that first launch.
 
 ## Maintainer build
 
@@ -15,13 +18,13 @@ From the repository root, create a clean Python 3.10+ x64 venv, then:
 
 Prerequisites: `.build-env`, Inno Setup 6 compiler at
 `.build-tools\InnoSetup\ISCC.exe` (or pass `-Iscc`), and redistributable x64
-`ffmpeg.exe`, `ffprobe.exe`, `node.exe` under `packaging\vendor` with their license
+`node.exe` under `packaging\vendor` with Node and Python license
 texts in `vendor\licenses`. Current bundle uses Node 22.22.0. Record versions and
 hashes when replacing vendor tools. Do not use an FFmpeg build with `--enable-nonfree`.
-Read THIRD-PARTY-NOTICES.md before redistribution; public distribution also needs
-the corresponding GPL sources, not just URLs and license texts.
+Read THIRD-PARTY-NOTICES.md. The spec deliberately excludes FFmpeg binaries;
+do not replace the explicit file list with the entire vendor directory.
 
-Output: `dist\installer\ClipHarbor-Setup-0.5.0-win-x64.exe`.
+Output: `dist\installer\ClipHarbor-Setup-0.5.1-win-x64.exe`.
 
 Validate the self-contained bundle without developer tools on PATH:
 
@@ -45,7 +48,6 @@ For testing, `CLIPHARBOR_DATA_DIR` overrides the data directory and `--no-browse
 8765, or another free localhost port if it is busy. Named projects persist across
 ports; browser drafts are origin-specific, so use Save project for ongoing work.
 
-No signing certificate or publishing destination is configured. The installer is
-unsigned and local; there is no public download URL. Windows SmartScreen may warn.
-Use a signing certificate and complete third-party-source compliance before a
-public release. A separate native build is needed for macOS/Linux.
+The installer is unsigned; Windows SmartScreen may warn. Do not disable security.
+Published builds: https://github.com/CarlFriGauss/clipharbor/releases
+A separate native build is needed for macOS/Linux.

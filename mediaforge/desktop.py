@@ -84,6 +84,8 @@ def main() -> int:
         return 1
     server = None
     try:
+        from .tool_setup import ensure_media_tools
+        ensure_media_tools(graphical=not args.no_browser)
         configure_tools()
         from .ffmpeg import require_tools
         require_tools()
@@ -115,10 +117,10 @@ def main() -> int:
                 raise RuntimeError("The local server stopped unexpectedly")
         logging.info("Clean shutdown requested")
         return 0
-    except Exception:
+    except Exception as error:
         logging.exception("ClipHarbor startup failed")
         if not args.no_browser:
-            show_error(f"ClipHarbor could not start.\n\nDetails: {logs / 'clipharbor.log'}")
+            show_error(f"ClipHarbor could not start.\n\n{error}\n\nOpen the app again to retry.\nDetails: {logs / 'clipharbor.log'}")
         return 1
     finally:
         if server:

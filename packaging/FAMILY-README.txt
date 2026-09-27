@@ -1,13 +1,15 @@
 ClipHarbor - Download. Edit. Export.
 
 1. Open ClipHarbor from the desktop or Start menu.
-2. Your browser opens automatically. Keep that tab for downloading and editing.
+2. On first launch, stay online while the setup window downloads media tools.
+   Your browser then opens automatically. Keep that tab for downloading and editing.
 3. Use Save project to keep edits for another day.
 4. When finished, click Quit app in the top right. Closing the browser tab alone
    leaves the app running so a download or export can finish.
 
 No Python, Conda, Node.js, terminal commands or separate FFmpeg installation needed.
-Internet is needed to download online media. Editing local files works offline.
+Internet is needed for first-time setup and downloading online media.
+After setup, editing local files works offline.
 
 Projects and cache are stored in %LOCALAPPDATA%\ClipHarbor.
 Downloaded/exported files go to the output folder you choose.

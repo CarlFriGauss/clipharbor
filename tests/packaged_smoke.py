@@ -27,7 +27,7 @@ def main():
         process = subprocess.Popen([str(exe), "--no-browser", "--port", "0"], env=env,
                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         try:
-            for _ in range(120):
+            for _ in range(1200):
                 if (root / "instance.json").is_file():
                     break
                 if process.poll() is not None:
@@ -51,8 +51,10 @@ def main():
             saved = api("/api/projects", {"name": "Installer smoke", "project": {"assets": [], "clips": []}})
             assert api("/api/projects/"+saved["id"])["name"] == "Installer smoke"
             tools = exe.parent / "_internal/tools"
+            assert not (tools / "ffmpeg.exe").exists(), "Do not redistribute the upstream binary"
+            media_tools = root / "tools" / "autobuild-2024-12-31-13-02"
             media = root / "test.wav"
-            subprocess.run([str(tools/"ffmpeg.exe"), "-v", "error", "-f", "lavfi", "-i",
+            subprocess.run([str(media_tools/"ffmpeg.exe"), "-v", "error", "-f", "lavfi", "-i",
                             "sine=frequency=500:duration=1", str(media)], env=env, check=True)
             asset = api("/api/assets/register", {"assets": [{"id": "test", "path": str(media)}]})["assets"][0]
             assert api("/api/waveform/"+asset["token"])["samples"]
@@ -92,7 +94,7 @@ def main():
             assert (root/"projects"/f"{saved['id']}.json").is_file()
             print(json.dumps({"ok": True, "version": info["version"], "export": status["result"]["media"]["duration"],
                               "checks": ["isolated PATH", "authenticated launch", "single instance", "save/open project",
-                                         "bundled FFmpeg", "waveform", "MP3 export", "inspect/download", "bundled Node", "clean quit"]}))
+                                         "first-run media tools", "waveform", "MP3 export", "inspect/download", "bundled Node", "clean quit"]}))
         finally:
             if process.poll() is None:
                 process.terminate()

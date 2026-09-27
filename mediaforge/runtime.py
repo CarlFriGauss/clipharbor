@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 RESOURCE_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -19,7 +19,8 @@ def data_root() -> Path:
 def configure_tools() -> None:
     if getattr(sys, "frozen", False):
         tools = RESOURCE_ROOT / "tools"
-        os.environ["PATH"] = str(tools) + os.pathsep + os.environ.get("PATH", "")
+        from .tool_setup import tool_directory
+        os.environ["PATH"] = os.pathsep.join([str(tool_directory()), str(tools), os.environ.get("PATH", "")])
 
 
 def downloads_directory() -> Path:

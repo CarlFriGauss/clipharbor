@@ -23,14 +23,19 @@ It is designed around a workflow rather than a collection of scripts:
 
 ### Windows installer
 
-Windows installer publication is pending completion of third-party distribution
-requirements. See [Releases](https://github.com/CarlFriGauss/clipharbor/releases)
-for published builds; do not use GitHub's automatic "Source code" ZIP as an installer.
-The local test build is not a public release yet.
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/latest)
+— open the release and download `ClipHarbor-Setup-0.5.1-win-x64.exe`.
+Run the installer, then open **ClipHarbor** from the desktop or Start menu.
+No terminal or separate runtime setup is needed. On first launch, a setup window
+downloads and verifies the media tools; stay online until it finishes. The app
+then opens in your browser. Use **Quit app** when finished. Later local editing
+works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
+Do not use GitHub's automatic "Source code" ZIP as an installer.
 
 Installed projects, cache and logs use `%LOCALAPPDATA%\ClipHarbor`; updates and
 uninstall leave those files intact. To update, quit and run a newer installer.
-This build is unsigned and has not been published to a download site. See
+This build is unsigned; Windows may show a publisher warning. Do not disable
+Windows security. Download only from this repository's releases. See
 [packaging notes](packaging/README.md) for build, testing and release requirements.
 
 ### Windows / PowerShell
