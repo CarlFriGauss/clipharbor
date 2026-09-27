@@ -12,7 +12,7 @@ $Repository = 'https://github.com/CarlFriGauss/clipharbor.git'
 $BootstrapRoot = if ($env:CLIPHARBOR_BOOTSTRAP_DIR) { $env:CLIPHARBOR_BOOTSTRAP_DIR } else { Join-Path $env:LOCALAPPDATA 'ClipHarbor\bootstrap' }
 $BootstrapRoot = [IO.Path]::GetFullPath($BootstrapRoot)
 $ToolsPrefix = Join-Path $BootstrapRoot 'tools'
-$Manager = Join-Path $BootstrapRoot 'micromamba-2.9.0.exe'
+$Manager = Join-Path $BootstrapRoot 'helper-2.9.0\micromamba.exe'
 $OriginalPath = $env:PATH
 $OriginalPythonPath = $env:PYTHONPATH
 $OriginalPythonHome = $env:PYTHONHOME
@@ -29,7 +29,7 @@ function Install-Missing([string[]]$Packages) {
     if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -and $env:PROCESSOR_ARCHITEW6432 -ne 'AMD64') {
         throw 'Automatic setup currently supports Windows x64. Use manual source setup on other architectures.'
     }
-    New-Item -ItemType Directory -Force -Path $BootstrapRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Manager) | Out-Null
     if (-not (Test-Path -LiteralPath $Manager) -or (Get-FileHash -LiteralPath $Manager -Algorithm SHA256).Hash -ne $Expected) {
         Write-Host 'Downloading the setup helper...'
         $Partial = "$Manager.$PID.download"

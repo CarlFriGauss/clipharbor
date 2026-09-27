@@ -24,7 +24,7 @@ bootstrap="${CLIPHARBOR_BOOTSTRAP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/clip
 mkdir -p "$bootstrap"
 bootstrap="$(cd "$bootstrap" && pwd)"
 prefix="$bootstrap/tools"
-manager="$bootstrap/micromamba-2.9.0"
+manager="$bootstrap/helper-2.9.0/micromamba"
 export PATH="$prefix/bin:$PATH"
 unset PYTHONPATH PYTHONHOME
 trap 'printf "Setup or launch stopped. Check the error above, then rerun the same command to retry.\n" >&2' ERR
@@ -44,6 +44,7 @@ sha256() {
 }
 install_missing() {
     if [[ ! -f "$manager" ]] || [[ "$(sha256 "$manager")" != "$checksum" ]]; then
+        mkdir -p "$(dirname "$manager")"
         printf 'Downloading the setup helper...\n'
         partial="$manager.$$.download"
         download "https://github.com/mamba-org/micromamba-releases/releases/download/2.9.0-0/micromamba-$platform" "$partial"

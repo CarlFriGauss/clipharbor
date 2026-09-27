@@ -22,8 +22,14 @@ jobs:
           $env:CLIPHARBOR_BOOTSTRAP_DIR = Join-Path $env:RUNNER_TEMP 'clipharbor-bootstrap'
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
           Remove-Item Env:\CONDA_PREFIX -ErrorAction SilentlyContinue
+          $setup = (Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/CarlFriGauss/clipharbor/main/run.ps1').Content
+          & ([scriptblock]::Create($setup)) -InstallRepository -SetupOnly
           ./run.ps1 -InstallRepository -SetupOnly
-          ./run.ps1 -InstallRepository -SetupOnly
+          $prefix = Join-Path $env:CLIPHARBOR_BOOTSTRAP_DIR 'tools'
+          $env:PATH = "$prefix;$prefix\Library\bin;$prefix\Scripts;$prefix\bin;$env:PATH"
+          $source = Join-Path $env:CLIPHARBOR_BOOTSTRAP_DIR 'source'
+          & "$source\.venv\Scripts\python.exe" tests/bootstrap_app_smoke.py $source
+          if ($LASTEXITCODE -ne 0) { throw 'App smoke test failed' }
       - name: Unix with missing developer tools simulated
         if: runner.os != 'Windows'
         shell: bash
@@ -37,3 +43,5 @@ jobs:
           export PATH="$RUNNER_TEMP/unavailable-tools:$PATH"
           bash ./run.sh --install --setup-only
           bash ./run.sh --install --setup-only
+          export PATH="$CLIPHARBOR_BOOTSTRAP_DIR/tools/bin:$PATH"
+          "$CLIPHARBOR_BOOTSTRAP_DIR/source/.venv/bin/python" tests/bootstrap_app_smoke.py "$CLIPHARBOR_BOOTSTRAP_DIR/source"
