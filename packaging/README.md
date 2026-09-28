@@ -24,12 +24,18 @@ hashes when replacing vendor tools. Do not use an FFmpeg build with `--enable-no
 Read THIRD-PARTY-NOTICES.md. The spec deliberately excludes FFmpeg binaries;
 do not replace the explicit file list with the entire vendor directory.
 
-Output: `dist\installer\ClipHarbor-Setup-0.5.1-win-x64.exe`.
+Output: `dist\installer\ClipHarbor-Setup-0.5.2-win-x64.exe`.
+
+The build probes a working Tcl/Tk instance and explicitly collects its loaded
+DLLs and library scripts as a matched set. Do not rely on DLL discovery through
+PATH: another Conda installation may contain a different patch release.
+Before Inno Setup runs, the packaged executable must pass the graphical first-run
+test with an empty data directory and developer tools removed from PATH.
 
 Validate the self-contained bundle without developer tools on PATH:
 
 ```powershell
-.\.build-env\Scripts\python.exe tests\packaged_smoke.py dist\ClipHarbor\ClipHarbor.exe
+.\.build-env\Scripts\python.exe tests\packaged_smoke.py dist\ClipHarbor\ClipHarbor.exe --graphical-setup
 ```
 
 The smoke test uses temporary per-user state and a local HTTP media source; it

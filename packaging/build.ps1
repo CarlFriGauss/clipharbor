@@ -14,7 +14,9 @@ try {
     }
     & $Python -m PyInstaller --noconfirm --distpath ..\dist --workpath ..\build ClipHarbor.spec
     if ($LASTEXITCODE -ne 0) { throw 'Application bundle failed.' }
+    & $Python ..\tests\packaged_smoke.py ..\dist\ClipHarbor\ClipHarbor.exe --graphical-setup
+    if ($LASTEXITCODE -ne 0) { throw 'Graphical first-run smoke test failed. Installer will not be built.' }
     & $Iscc /Q ClipHarbor.iss
     if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
-    Get-FileHash ..\dist\installer\ClipHarbor-Setup-0.5.1-win-x64.exe -Algorithm SHA256
+    Get-FileHash ..\dist\installer\ClipHarbor-Setup-0.5.2-win-x64.exe -Algorithm SHA256
 } finally { Pop-Location; $env:PYTHONPATH = $OriginalPythonPath }

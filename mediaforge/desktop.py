@@ -54,6 +54,7 @@ def show_error(message: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="ClipHarbor desktop launcher")
     parser.add_argument("--no-browser", action="store_true", help="Diagnostics only")
+    parser.add_argument("--setup-ui", action="store_true", help="Exercise graphical first-run setup even with --no-browser")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     root = data_root()
@@ -85,7 +86,7 @@ def main() -> int:
     server = None
     try:
         from .tool_setup import ensure_media_tools
-        ensure_media_tools(graphical=not args.no_browser)
+        ensure_media_tools(graphical=args.setup_ui or not args.no_browser)
         configure_tools()
         from .ffmpeg import require_tools
         require_tools()

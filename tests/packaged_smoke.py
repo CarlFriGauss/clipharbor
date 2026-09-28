@@ -16,6 +16,7 @@ import urllib.request
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("executable", type=Path)
+    parser.add_argument("--graphical-setup", action="store_true")
     args = parser.parse_args()
     exe = args.executable.resolve()
     with tempfile.TemporaryDirectory(prefix="clipharbor-smoke-") as temporary:
@@ -24,7 +25,10 @@ def main():
                    PATH=str(Path(os.environ["SystemRoot"]) / "System32"))
         env.pop("PYTHONPATH", None)
         env.pop("PYTHONHOME", None)
-        process = subprocess.Popen([str(exe), "--no-browser", "--port", "0"], env=env,
+        command = [str(exe), "--no-browser", "--port", "0"]
+        if args.graphical_setup:
+            command.append("--setup-ui")
+        process = subprocess.Popen(command, env=env,
                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         try:
             for _ in range(1200):
@@ -34,6 +38,11 @@ def main():
                     raise RuntimeError((root / "logs/clipharbor.log").read_text())
                 time.sleep(.5)
             info = json.loads((root / "instance.json").read_text())
+            gui_runtime = None
+            if args.graphical_setup:
+                gui_runtime = next((line for line in (root / "logs/clipharbor.log").read_text().splitlines()
+                                    if "Graphical setup ready (Tcl=" in line), None)
+                assert gui_runtime, "Graphical setup was not exercised"
             base = f"http://127.0.0.1:{info['port']}"
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
             def api(path, data=None):
@@ -93,6 +102,8 @@ def main():
             assert process.wait(timeout=20) == 0
             assert (root/"projects"/f"{saved['id']}.json").is_file()
             print(json.dumps({"ok": True, "version": info["version"], "export": status["result"]["media"]["duration"],
+                              "graphical_setup": args.graphical_setup,
+                              "gui_runtime": gui_runtime,
                               "checks": ["isolated PATH", "authenticated launch", "single instance", "save/open project",
                                          "first-run media tools", "waveform", "MP3 export", "inspect/download", "bundled Node", "clean quit"]}))
         finally:

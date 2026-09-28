@@ -15,6 +15,9 @@ distribution metadata in this bundle for license texts and exact build versions.
 - Node.js v22.22.0: MIT and bundled third-party licenses.
   Source: https://github.com/nodejs/node/tree/v22.22.0
 - Python: Python Software Foundation license. https://www.python.org/psf/license/
+- Tcl/Tk 8.6.13 and zlib 1.2.13: their notices are included in tools/licenses.
+  Sources: https://github.com/tcltk/tcl/tree/core-8-6-13,
+  https://github.com/tcltk/tk/tree/core-8-6-13, https://github.com/madler/zlib/tree/v1.2.13
 - Flask and Werkzeug: BSD-3-Clause. https://palletsprojects.com/
 - Waitress: ZPL-2.1. https://github.com/Pylons/waitress
 - yt-dlp: Unlicense; its dependencies have separate licenses included in metadata.
@@ -26,7 +29,7 @@ distribution metadata in this bundle for license texts and exact build versions.
   https://pyinstaller.org/en/stable/license.html
 - Certifi certificate bundle: MPL-2.0. https://github.com/certifi/python-certifi
   Exact Certifi and PyInstaller sources are in ClipHarbor-third-party-sources.zip
-  alongside this release: https://github.com/CarlFriGauss/clipharbor/releases/tag/v0.5.1
+  alongside this release: https://github.com/CarlFriGauss/clipharbor/releases/tag/v0.5.2
 
 The installer includes Node and Python license texts and dependency distribution
 metadata. FFmpeg is obtained by the end user from its upstream distributor, not

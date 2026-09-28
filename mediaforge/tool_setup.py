@@ -1,5 +1,6 @@
 """First-run desktop media tools, fetched directly from the upstream distributor."""
 import hashlib
+import logging
 import os
 from pathlib import Path
 import queue
@@ -136,6 +137,10 @@ def ensure_media_tools(graphical=True):
 
     ttk.Button(window, text="Cancel", command=cancel).pack(pady=10)
     window.protocol("WM_DELETE_WINDOW", cancel)
+    window.update_idletasks()
+    logging.info("Graphical setup ready (Tcl=%s, Tk=%s)",
+                 window.tk.call("package", "present", "Tcl"),
+                 window.tk.call("package", "present", "Tk"))
     threading.Thread(target=work, daemon=True).start()
     window.after(100, poll)
     window.mainloop()

@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.5.1/ClipHarbor-Setup-0.5.1-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.5.2/ClipHarbor-Setup-0.5.2-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -30,7 +30,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.5.1/ClipHarbor-Setup-0.5.1-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.5.2/ClipHarbor-Setup-0.5.2-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -38,6 +38,10 @@ downloads and verifies the media tools; stay online until it finishes. The app
 then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
+
+Version 0.5.2 fixes the Tcl/Tk startup error in 0.5.1. If you saw an `init.tcl`
+error, close its dialog and install the new version over the old one. No project
+or media deletion is needed.
 
 Installed projects, cache and logs use `%LOCALAPPDATA%\ClipHarbor`; updates and
 uninstall leave those files intact. To update, quit and run a newer installer.

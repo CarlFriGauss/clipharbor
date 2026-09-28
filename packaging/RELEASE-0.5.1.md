@@ -1,5 +1,9 @@
 # ClipHarbor 0.5.1 — Windows desktop preview
 
+> Known first-launch defect: this build can fail with a Tcl/Tk `init.tcl`
+> version mismatch. Do not use it for a new installation. Use version 0.5.2
+> or newer from the Releases page instead.
+
 Download **ClipHarbor-Setup-0.5.1-win-x64.exe** below. Install it and launch
 ClipHarbor from the desktop or Start menu. No terminal commands are needed.
 
