@@ -2,6 +2,10 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.5.1/ClipHarbor-Setup-0.5.1-win-x64.exe)
+— no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
+for Windows, macOS, or Linux; it installs missing components for you.
+
 It is designed around a workflow rather than a collection of scripts:
 
 1. Inspect a public media URL and show what was found.
@@ -11,20 +15,23 @@ It is designed around a workflow rather than a collection of scripts:
 5. Send the completed file straight into a fresh timeline project, with the media already placed on the first compatible layer.
 6. Build a non-destructive edit from video and audio clips, split clips into independently editable sections, and render the result with FFmpeg.
 
-## Requirements
+## Requirements for manual source setup
 
-- Windows 10/11 x64 for the installer; source setup instructions below also cover macOS and Linux (not yet tested on those operating systems)
+- Windows 10/11 x64 for the installer; source setup also supports macOS and Linux
 - Python 3.10+
 - `ffmpeg` and `ffprobe` on `PATH`
 - Node.js 22+ on `PATH` for YouTube JavaScript challenges
 - Python dependencies are installed by the commands below
 
+These are **not prerequisites you need to install yourself** when using the
+installer or automatic terminal setup.
+
 ## Start
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/latest)
-— open the release and download `ClipHarbor-Setup-0.5.1-win-x64.exe`.
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.5.1/ClipHarbor-Setup-0.5.1-win-x64.exe)
+— or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
 downloads and verifies the media tools; stay online until it finishes. The app
@@ -203,6 +210,11 @@ Rerunning setup does not silently update or discard your source changes. To upda
 the app, use `git pull --ff-only` in its checkout. To refresh download support,
 run `./run.ps1 -UpdateDependencies` or `bash ./run.sh --update-dependencies`.
 Maintainers can use `-SetupOnly` / `--setup-only` to verify setup without launching.
+
+Automated [cross-platform checks](https://github.com/CarlFriGauss/clipharbor/actions/workflows/bootstrap.yml)
+cover missing-tool setup, repeat setup, app startup, waveform generation, and MP4
+export on Windows, Ubuntu, and macOS. These are smoke tests, not exhaustive
+verification of every editing operation or website.
 
 ## Editor model
 
