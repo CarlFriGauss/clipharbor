@@ -1,3 +1,0 @@
-Flask>=3.1,<4
-yt-dlp[default]>=2025.1.0
-waitress>=3.0,<4
