@@ -11,6 +11,19 @@ No Python, Conda, Node.js, terminal commands or separate FFmpeg installation nee
 Internet is needed for first-time setup and downloading online media.
 After setup, editing local files works offline.
 
+To save a download to Google Drive, select Google Drive under Output and click
+Sign in with Google. Export uses that same remembered connection and folder.
+ClipHarbor never asks for your Google password. Account permissions are protected
+by your operating-system account. Disconnect removes the local connection and
+attempts to revoke Google's permission.
+
+Export also offers YouTube, X and Facebook Pages, with their logos. YouTube needs
+separate upload permission and defaults to private. X and Facebook Page uploads
+require the platform access tokens explained in the app and online README.
+Those social publishing integrations have not yet been verified with real accounts.
+Direct-to-Drive downloads use temporary local space, then remove the temporary
+files after a verified upload. Failed uploads can be retried from Activity.
+
 Projects and cache are stored in %LOCALAPPDATA%\ClipHarbor.
 Downloaded/exported files go to the output folder you choose.
 Saved projects refer to source files: do not move or delete those files.

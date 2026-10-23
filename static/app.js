@@ -75,41 +75,53 @@ async function inspectSource() {
 async function startDownload() {
   const audioOption=$("#audioTrackSelect").selectedOptions[0];
   const payload = {url: $("#urlInput").value.trim(), outputDirectory: $("#outputPath").value.trim(), outputFormat: $("#formatSelect").value, xCompatible: $("#formatSelect").value === "mp4" && $("#xCompatible").checked, audioFormatId:$("#audioTrackSelect").value||null,audioTrackLabel:$("#audioTrackSelect").value?(audioOption?.dataset.label||audioOption?.textContent||null):null,cookieFile: $("#cookiePath").value.trim()};
-  if (!payload.url || !payload.outputDirectory) return toast("Missing download details", "Enter a URL and output folder.", true);
-  const button = $("#downloadButton"); button.disabled = true;
-  try { const job = await api("/api/downloads", {method: "POST", body: JSON.stringify(payload)}); trackJob(job); toast("Download started", "It will continue in the background."); setView("jobs"); }
-  catch (error) { toast("Download could not start", error.message, true); } finally { button.disabled = false; }
+  Object.assign(payload, downloadDeliveryPayload());
+  if (!payload.url || (payload.destination === "local" && !payload.outputDirectory)) return toast("Missing download details", "Enter a URL and choose an output folder for local downloads.", true);
+  if(payload.destination === "drive" && !connectionStatus.drive?.connected) return toast("Connect Google Drive", "Connect your account before starting a Drive download.", true);
+  downloadStarting = true; updateDownloadDestination();
+  try { const job = await api("/api/downloads", {method: "POST", body: JSON.stringify(payload)}); trackJob(job); toast("Download started", payload.destination === "drive" ? "The video will upload to Google Drive after processing." : "It will continue in the background."); setView("jobs"); }
+  catch (error) { toast("Download could not start", error.message, true); if(payload.destination === "drive") refreshConnections().catch(()=>{}); } finally { downloadStarting = false; updateDownloadDestination(); }
 }
 function trackJob(job) {
   state.jobs.set(job.id, job); updateJobs();
   const poll = async () => {
     try {
-      const latest = await api(`/api/jobs/${job.id}`); state.jobs.set(job.id, latest); updateJobs();
+      const latest = await api(`/api/jobs/${job.id}`); latest.deliveryRequest = state.jobs.get(job.id)?.deliveryRequest; state.jobs.set(job.id, latest); updateJobs();
       if (["queued", "running"].includes(latest.status)) return setTimeout(poll, 650);
-      if (latest.status === "completed") completeJob(latest); else toast(`${latest.kind} failed`, latest.error || "See Activity for details.", true);
+      if (latest.status === "completed") completeJob(latest); else {toast(`${latest.kind} failed`, latest.error || "See Activity for details.", true); if(latest.result?.cloudDownloadId) refreshConnections().catch(()=>{});}
     } catch (error) { toast("Lost job status", error.message, true); }
   }; setTimeout(poll, 400);
 }
 function completeJob(job) {
   state.lastResult = job.result; const media = job.result.media, isDownload = job.kind === "download";
+  const cloudDownload = Boolean(job.result.cloudDownloadId), localAvailable = !cloudDownload && Boolean(job.result.path);
   const finalMp4=isDownload&&media.kind==="video"&&media.name.toLowerCase().endsWith(".mp4");
-  $("#completeTitle").textContent = finalMp4 ? "Final MP4 ready" : isDownload ? "Download complete" : "Render complete";
+  $("#completeTitle").textContent = cloudDownload ? "Saved to Google Drive" : finalMp4 ? "Final MP4 ready" : isDownload ? "Download complete" : job.result.delivery ? "Export complete" : job.kind === "upload" ? "Upload complete" : "Render complete";
   let note = finalMp4 ? `${media.name} · ${formatBytes(media.size)} · Ready to use. No editing or additional export is required.` : `${media.name} · ${formatBytes(media.size)}`;
   if(job.result.audioTrack)note+=` · Audio: ${job.result.audioTrack}.`;
   if (isDownload && job.result.xCompatible) note += job.result.xConversionSkipped ? " · Extra X conversion was unnecessary." : " · Verified for X.";
   if (!isDownload && job.result.xCompatible) note += " · Verified for X upload.";
-  $("#completeMessage").textContent = note;$("#completePath").textContent=job.result.path;$("#completeDialog").showModal();
+  if(job.result.delivery) note += " · " + destinationNames[job.result.delivery.provider] + " · " + job.result.delivery.visibility;
+  if(cloudDownload) note += job.result.localAvailable === false ? " · Temporary files removed from this computer." : " · " + job.result.cleanupWarning;
+  $("#completeDone").textContent = cloudDownload ? "Done" : "Done — use this file";
+  for(const id of ["#revealResult", "#shareResult", "#editResult"]) $(id).classList.toggle("hidden", !localAvailable);
+  $("#openDelivery").classList.toggle("hidden",!job.result.delivery);
+  if(job.result.delivery){$("#openDelivery").href=job.result.delivery.url;$("#openDelivery").textContent="Open in "+destinationNames[job.result.delivery.provider];}
+  $("#completePath").classList.toggle("hidden", !localAvailable);
+  $("#completeMessage").textContent = note;$("#completePath").textContent=job.result.path || "";$("#completeDialog").showModal();
+  if(cloudDownload) refreshConnections().catch(()=>{});
 }
 function updateJobs() {
   const allJobs = [...state.jobs.values()].sort((a,b) => b.createdAt - a.createdAt), active = allJobs.filter(job => ["queued","running"].includes(job.status)).length;
   $("#jobCount").textContent = active; $("#jobCount").classList.toggle("hidden", !active);
   if (!allJobs.length) return $("#jobsList").innerHTML = `<div class="empty-jobs">No activity yet.</div>`;
-  $("#jobsList").innerHTML = allJobs.map(job => `<article class="job-card ${escapeHtml(job.status)}"><div class="job-top"><strong>${escapeHtml(job.kind)}</strong><span class="job-status">${escapeHtml(job.status)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${job.progress}%"></div></div><div class="job-message"><span>${escapeHtml(job.message || "")}</span><span>${Math.round(job.progress)}%</span></div>${job.result?.path?`<code class="job-result-path">${escapeHtml(job.result.path)}</code><div class="job-actions"><button class="button secondary" data-job-reveal="${escapeHtml(job.id)}">Open folder</button><button class="button ghost" data-job-edit="${escapeHtml(job.id)}">Edit as new project</button></div>`:""}${job.log?.length ? `<details><summary class="job-status">FFmpeg / downloader details</summary><pre class="job-log">${escapeHtml(job.log.slice(-16).join("\n"))}</pre></details>` : ""}</article>`).join("");
+  $("#jobsList").innerHTML = allJobs.map(job => `<article class="job-card ${escapeHtml(job.status)}"><div class="job-top"><strong>${escapeHtml(job.kind)}</strong><span class="job-status">${escapeHtml(job.status)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${job.progress}%"></div></div><div class="job-message"><span>${escapeHtml(job.message || "")}</span><span>${Math.round(job.progress)}%</span></div>${jobResultMarkup(job)}${job.error ? `<p class="job-error">${escapeHtml(job.error)}</p>` : ""}${job.log?.length ? `<details><summary class="job-status">FFmpeg / downloader details</summary><pre class="job-log">${escapeHtml(job.log.slice(-16).join("\n"))}</pre></details>` : ""}</article>`).join("");
 }
 async function revealResult(result=state.lastResult){if(!result?.token)return toast("File is unavailable","The completed file is no longer registered.",true);try{await api(`/api/reveal/${encodeURIComponent(result.token)}`,{method:"POST",body:"{}"});}catch(error){toast("Folder could not be opened",error.message,true);}}
 function editJobResult(jobId){const job=state.jobs.get(jobId);if(!job?.result)return;state.lastResult=job.result;addResultToEditor();}
 function addResultToEditor() {
   const result = state.lastResult; if (!result) return;
+  if(result.cloudDownloadId) return toast("This download is saved to Google Drive", "Choose This computer when downloading media you want to edit locally.", true);
   resetWorkspace(projectNameFromMedia(result.media?.name));
   const asset = {id: crypto.randomUUID(), path: result.path, token: result.token, media: result.media};
   state.assets.push(asset); state.selectedAssetId = asset.id; loadWaveform(asset); addClip(asset.media.kind === "video" ? "video" : "audio"); markProjectDirty();
@@ -573,10 +585,19 @@ function serializeProject() {
   return {version:1,settings:{width,height,fps,quality:$("#exportQuality").value,autoBalance:state.autoBalance,xCompatible:$("#exportFormat").value==="x_mp4"},assets:state.assets.map(asset=>({id:asset.id,path:asset.path,audio:Boolean(asset.media.audio),kind:asset.media.kind,duration:asset.media.duration})),clips:state.clips.map(clip=>{const track=getTrackState(clip.kind,clip.layer);return{...clip,muted:Boolean(clip.muted||track.muted),hidden:Boolean(clip.kind==="video"&&track.hidden)};})};
 }
 async function startExport() {
+  const delivery = deliveryPayload();
+  if (exportSource) {
+    if (delivery.destination === "local") return $("#exportDialog").close();
+    try {
+      const job = await api("/api/uploads", {method:"POST", body:JSON.stringify({token:exportSource.token,...delivery})});
+      job.deliveryRequest = delivery; trackJob(job); $("#exportDialog").close(); setView("jobs");
+    } catch(error) { toast("Upload could not start", error.message, true); }
+    return;
+  }
   if(!state.clips.length)return toast("Timeline is empty","Add at least one section before exporting.",true);
   const preset=$("#exportFormat").value,xCompatible=preset==="x_mp4";if(xCompatible&&!state.clips.some(clip=>clip.kind==="video"&&!getTrackState(clip.kind,clip.layer).hidden))return toast("X export needs video","Choose a regular audio format for an audio-only project.",true);
   const payload={project:serializeProject(),outputDirectory:$("#exportPath").value.trim(),filename:$("#exportName").value.trim(),outputFormat:xCompatible?"mp4":preset,saveProject:$("#saveProjectFile").checked}; if(!payload.outputDirectory)return toast("Choose an output folder","The render needs a destination.",true);
-  try{const job=await api("/api/renders",{method:"POST",body:JSON.stringify(payload)});$("#exportDialog").close();trackJob(job);setView("jobs");toast("Render started","Your sources remain untouched.");}catch(error){toast("Render could not start",error.message,true);}
+  try{const job=await api("/api/renders",{method:"POST",body:JSON.stringify({...payload,...delivery})});job.deliveryRequest = delivery.destination === "local" ? null : delivery;$("#exportDialog").close();trackJob(job);setView("jobs");toast("Render started","Your sources remain untouched.");}catch(error){toast("Render could not start",error.message,true);}
 }
 function applyInspectorChange(input) {
   const clips=selectedClips().filter(clip=>!isTrackLocked(clip));if(!clips.length)return;const prop=input.dataset.prop;let value=input.type==="checkbox"?input.checked:Number(input.value);if(input.type!=="checkbox"&&input.value==="")return;if(prop==="layer")value-=1;
@@ -618,7 +639,7 @@ function wireEvents() {
   });
   $$('[data-prop]').forEach(input=>input.addEventListener("change",event=>applyInspectorChange(event.target)));$("#jumpStart").addEventListener("click",()=>setPlayhead(0));$("#playPause").addEventListener("click",toggleTimelinePlayback);
   $("#newProject").addEventListener("click",newProject);$("#openProject").addEventListener("click",showProjectBrowser);$("#saveProject").addEventListener("click",showSaveProjectDialog);$("#confirmSaveProject").addEventListener("click",saveNamedProject);$("#projectNameInput").addEventListener("keydown",event=>{if(event.key==="Enter")saveNamedProject();});$("#projectList").addEventListener("click",event=>{const open=event.target.closest("[data-open-project]");if(open)return openNamedProject(open.dataset.openProject);const remove=event.target.closest("[data-delete-project]");if(remove)return deleteNamedProject(remove.dataset.deleteProject);});
-  $("#exportFormat").addEventListener("change",()=>{updateExportPresetUI();markProjectDirty();saveDraft();});for(const id of ["#exportCanvas","#exportFps","#exportQuality"])$(id).addEventListener("change",()=>{markProjectDirty();saveDraft();});$("#exportButton").addEventListener("click",()=>{$("#exportName").value=state.currentProjectName==="Untitled project"?"ClipHarbor export":state.currentProjectName;updateExportPresetUI();$("#exportDialog").showModal();});$("#startExport").addEventListener("click",startExport);$("#editResult").addEventListener("click",addResultToEditor);$("#revealResult").addEventListener("click",()=>revealResult());$("#jobsList").addEventListener("click",event=>{const reveal=event.target.closest("[data-job-reveal]");if(reveal)return revealResult(state.jobs.get(reveal.dataset.jobReveal)?.result);const edit=event.target.closest("[data-job-edit]");if(edit)return editJobResult(edit.dataset.jobEdit);});$$('[data-close-dialog]').forEach(button=>button.addEventListener("click",()=>button.closest("dialog").close()));
+  $("#exportFormat").addEventListener("change",()=>{updateExportPresetUI();markProjectDirty();saveDraft();});for(const id of ["#exportCanvas","#exportFps","#exportQuality"])$(id).addEventListener("change",()=>{markProjectDirty();saveDraft();});$("#exportButton").addEventListener("click",()=>showExport());$("#startExport").addEventListener("click",startExport);$("#editResult").addEventListener("click",addResultToEditor);$("#revealResult").addEventListener("click",()=>revealResult());$("#jobsList").addEventListener("click",event=>{const reveal=event.target.closest("[data-job-reveal]");if(reveal)return revealResult(state.jobs.get(reveal.dataset.jobReveal)?.result);const edit=event.target.closest("[data-job-edit]");if(edit)return editJobResult(edit.dataset.jobEdit);});$$('[data-close-dialog]').forEach(button=>button.addEventListener("click",()=>button.closest("dialog").close()));
   // Source audition and timeline playback never write each other's clocks.
   [$("#videoPlayer"),$("#audioPlayer")].forEach(player=>player.addEventListener("play",()=>{if(!state.previewClipId&&state.playingTimeline)stopTimelinePlayback();}));document.addEventListener("keydown",handleKeyboard);
 }

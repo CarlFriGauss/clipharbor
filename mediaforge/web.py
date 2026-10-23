@@ -12,8 +12,10 @@ from typing import Any
 from flask import Flask, jsonify, render_template, request, send_file, redirect, g
 from werkzeug.exceptions import HTTPException
 
-from .downloader import download, inspect_url
-from .editor import render
+from .downloader import inspect_url
+from .cloud_downloads import download_to_destination, pending_downloads, reserve_retry, release_retry, retry_cloud_download, discard_download
+from .publishing import connections, authorize_google, connect_token, validate_destination, render_and_publish, retry_upload, disconnect_account as remove_connection
+from .google_config import google_client
 from .ffmpeg import probe, require_tools, x_compatibility
 from .jobs import jobs
 from .projects import ProjectStore
@@ -111,7 +113,7 @@ def create_app() -> Flask:
         if request.endpoint not in {"launch_desktop", "health", "static"}:
             if not secrets.compare_digest(request.cookies.get("clipharbor-session", ""), token):
                 return jsonify({"error": "Open ClipHarbor using its desktop shortcut"}), 401
-        if request.endpoint in {"waveform", "prepare_playback", "inspect", "dialog"}:
+        if request.endpoint in {"waveform", "prepare_playback", "inspect", "dialog", "connect_account", "upload_existing"}:
             with lifecycle_lock:
                 if closing:
                     return jsonify({"error": "ClipHarbor is closing"}), 503
@@ -237,9 +239,20 @@ def create_app() -> Flask:
     @app.post("/api/downloads")
     def start_download():
         data = _json()
+        provider = str(data.get("destination", "local"))
+        options = data.get("deliveryOptions") or {}
+        if provider not in {"local", "drive"}:
+            raise ValueError("Unknown download destination")
+        if not isinstance(options, dict):
+            raise ValueError("Download destination options must be an object")
+        validate_destination(provider, str(data.get("outputFormat", "original")), options)
+        if provider == "local" and not str(data.get("outputDirectory", "")).strip():
+            raise ValueError("Choose an output folder for this computer")
         job = jobs.start(
             "download",
-            download,
+            download_to_destination,
+            provider=provider,
+            delivery_options=options,
             url=str(data.get("url", "")).strip(),
             output_directory=str(data.get("outputDirectory", "")).strip(),
             output_format=str(data.get("outputFormat", "original")),
@@ -251,12 +264,89 @@ def create_app() -> Flask:
         )
         return jsonify(job.public()), 202
 
+    @app.get("/api/downloads/pending")
+    def pending_cloud_downloads():
+        return jsonify({"downloads": pending_downloads()}), {"Cache-Control": "no-store"}
+
+    @app.post("/api/downloads/pending/<download_id>/retry")
+    def retry_download(download_id):
+        result = reserve_retry(download_id)
+        try:
+            job = jobs.start("download", retry_cloud_download, result=result)
+        except Exception:
+            release_retry(download_id)
+            raise
+        return jsonify(job.public()), 202
+
+    @app.delete("/api/downloads/pending/<download_id>")
+    def discard_pending_download(download_id):
+        discard_download(download_id)
+        return jsonify({"ok": True})
+
+    @app.before_request
+    def protect_connections():
+        if request.path.startswith(("/api/connections", "/api/uploads", "/api/downloads")):
+            from urllib.parse import urlsplit
+            if urlsplit(request.host_url).hostname not in {"127.0.0.1", "localhost", "::1"}:
+                return jsonify({"error": "Connections are only available on localhost"}), 403
+            origin = request.headers.get("Origin")
+            if request.headers.get("Sec-Fetch-Site") == "cross-site" or (origin and origin != request.host_url.rstrip("/")):
+                return jsonify({"error": "Open connections from the local ClipHarbor window"}), 403
+            if request.method == "POST" and not request.is_json:
+                return jsonify({"error": "A JSON request is required"}), 415
+
+    @app.get("/api/connections")
+    def connection_status():
+        response = jsonify(connections.status())
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.post("/api/connections/<provider>")
+    def connect_account(provider):
+        data = _json()
+        if provider in {"drive", "youtube"}:
+            if "credentials" in data:
+                raise ValueError("Google connection setup is managed by ClipHarbor. Refresh the app to use Sign in with Google.")
+            credentials = google_client(connections.get(provider))
+            job = jobs.start("connection", authorize_google, provider=provider, credentials=credentials, folder_id=str(data.get("folderId", "")))
+            return jsonify(job.public()), 202
+        connect_token(provider, data.get("token", ""), str(data.get("pageId", "")))
+        return jsonify({"connected": True})
+
+    @app.delete("/api/connections/<provider>")
+    def disconnect_account(provider):
+        if provider not in {"drive", "youtube", "x", "facebook"}:
+            raise ValueError("Unknown destination")
+        return jsonify(remove_connection(provider))
+
+    @app.post("/api/uploads")
+    def upload_existing():
+        data = _json()
+        path = registry.get(str(data.get("token", "")))
+        if not path or not path.is_file():
+            return jsonify({"error": "The local export is no longer available"}), 404
+        provider = str(data.get("destination", "local"))
+        options = data.get("deliveryOptions") or {}
+        validate_destination(provider, path.suffix.lower().lstrip("."), options)
+        result = {"path": str(path), "token": registry.add(path), "media": probe(path)}
+        if provider not in {"local", "drive"} and not result["media"].get("video"):
+            raise ValueError("Social exports require a video.")
+        job = jobs.start("upload", retry_upload, result=result, provider=provider, options=options)
+        return jsonify(job.public()), 202
+
     @app.post("/api/renders")
     def start_render():
         data = _json()
+        provider = str(data.get("destination", "local"))
+        options = data.get("deliveryOptions") or {}
+        validate_destination(provider, str(data.get("outputFormat", "mp4")), options)
+        if provider not in {"local", "drive"} and not any(c.get("kind") == "video" and not c.get("hidden") for c in (data.get("project") or {}).get("clips", [])):
+            raise ValueError("Social exports require a visible video section.")
         job = jobs.start(
             "render",
-            render,
+            render_and_publish,
+            provider=provider,
+            delivery_options=options,
             project=data.get("project") or {},
             output_directory=str(data.get("outputDirectory", "")).strip(),
             filename=str(data.get("filename", "ClipHarbor export")),

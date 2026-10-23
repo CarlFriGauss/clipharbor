@@ -22,3 +22,7 @@ tests/verify_recording_exports.py
 build/
 dist/
 packaging/vendor/
+
+# Per-user cloud credentials; never ship or commit.
+.connections/
+google-oauth-client.json

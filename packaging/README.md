@@ -24,7 +24,9 @@ hashes when replacing vendor tools. Do not use an FFmpeg build with `--enable-no
 Read THIRD-PARTY-NOTICES.md. The spec deliberately excludes FFmpeg binaries;
 do not replace the explicit file list with the entire vendor directory.
 
-Output: `dist\installer\ClipHarbor-Setup-0.5.2-win-x64.exe`.
+Output: `dist\installer\ClipHarbor-Setup-0.6.0-win-x64.exe`.
+The build script reads `mediaforge.runtime.VERSION` and passes it to Inno Setup
+so the application and installer versions agree.
 
 The build probes a working Tcl/Tk instance and explicitly collects its loaded
 DLLs and library scripts as a matched set. Do not rely on DLL discovery through
@@ -57,3 +59,34 @@ ports; browser drafts are origin-specific, so use Save project for ongoing work.
 The installer is unsigned; Windows SmartScreen may warn. Do not disable security.
 Published builds: https://github.com/CarlFriGauss/clipharbor/releases
 A separate native build is needed for macOS/Linux.
+
+## Publisher Google sign-in registration
+
+Configure one OAuth Desktop app client for ClipHarbor in Google Cloud, enable
+Drive API and/or YouTube Data API v3, and complete the required consent and
+production verification. End users should only click **Sign in with Google**.
+They must never create Cloud projects or supply JSON credentials themselves.
+
+Before building, put that publisher registration in the ignored root file
+`google-oauth-client.json`, or set `CLIPHARBOR_GOOGLE_CLIENT_FILE` to its absolute
+path. The spec validates and normalizes the registration, includes only its
+client ID and optional desktop client secret, and rejects token-bearing input.
+Google treats installed applications as public clients; the desktop registration
+cannot be kept confidential inside a distributed app. User authorization is
+protected separately by PKCE and the operating system's credential store.
+
+Never bundle `.connections`, user refresh/access tokens, or a developer's signed-in
+account. Each user grants access in Google's browser flow and gets their own
+protected connection. A build without publisher registration keeps local media
+features available and reports Google sign-in unavailable. Live authorization
+cannot be tested until a real registered client is supplied.
+
+The ClipHarbor publisher project is `clipharbor`. Its app information and privacy
+pages are published at `https://carlfrigauss.github.io/clipharbor/` and
+`https://carlfrigauss.github.io/clipharbor/privacy.html`, with source in `docs/`
+and a separate `gh-pages` deployment branch. The Google consent configuration is
+in production. This is distinct from Google approval of sensitive or restricted
+scopes and from YouTube's upload audit; complete those reviews where required.
+Do not return released builds to Google's testing mode: refresh tokens issued
+in testing expire after seven days. Replace any testing authorization through a
+fresh sign-in after switching to production.

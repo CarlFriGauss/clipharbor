@@ -1,5 +1,6 @@
 # Build in the small .build-env, never collect the user's full Conda environment.
 from pathlib import Path
+import os
 import sys
 from PyInstaller.utils.hooks import collect_all, copy_metadata
 import pefile
@@ -27,6 +28,21 @@ datas = [(str(root / 'static'), 'static'), (str(root / 'templates'), 'templates'
          (str(root / 'packaging' / 'licenses'), 'tools/licenses'),
          (str(root / 'packaging' / 'THIRD-PARTY-NOTICES.md'), '.'),
          (str(root / 'packaging' / 'FAMILY-README.txt'), '.')]
+# This is the publisher's Desktop app registration, never an end user's tokens.
+google_client_file = Path(os.environ.get('CLIPHARBOR_GOOGLE_CLIENT_FILE', root / 'google-oauth-client.json')).expanduser()
+if google_client_file.is_file():
+    import json
+    registration = json.loads(google_client_file.read_text(encoding='utf-8'))
+    if not isinstance(registration.get('installed'), dict) or not registration['installed'].get('client_id'):
+        raise RuntimeError('Google registration must be an OAuth Desktop app client JSON')
+    if any(key in record for record in (registration, registration['installed']) for key in ('access_token', 'refresh_token', 'token')):
+        raise RuntimeError('Never bundle user tokens in a Google client registration')
+    normalized_google_client = root / 'build' / 'publisher-google-client.json'
+    normalized_google_client.parent.mkdir(parents=True, exist_ok=True)
+    normalized_google_client.write_text(json.dumps({'installed': {
+        key: registration['installed'][key] for key in ('client_id', 'client_secret')
+        if key in registration['installed']
+    }}), encoding='utf-8')
 binaries, hiddenimports = [], ['tkinter', 'tkinter.filedialog', 'waitress']
 for package in ['yt_dlp', 'yt_dlp_ejs']:
     data, binary, hidden = collect_all(package)
@@ -41,6 +57,10 @@ a = Analysis([str(root / 'desktop.py')], pathex=[str(root)], binaries=binaries,
              # Optional thumbnail-tagging library is not used by ClipHarbor.
              # Keep GPL-linked Mutagen out of this independent application bundle.
              excludes=['numpy', 'scipy', 'pytest', 'IPython', 'matplotlib', 'mutagen'], noarchive=False)
+if google_client_file.is_file():
+    # Normalize the runtime name even when the downloaded registration has a
+    # provider-generated file name such as client_secret_1234.json.
+    a.datas.append(('google-oauth-client.json', str(normalized_google_client), 'DATA'))
 assert not any(entry[0] == 'mutagen' or entry[0].startswith('mutagen.') for entry in a.pure)
 assert not any(Path(entry[0]).name.lower() in {'ffmpeg.exe', 'ffprobe.exe'} for entry in a.datas + a.binaries)
 # The dependency scanner can resolve DLLs from another Conda environment on PATH.

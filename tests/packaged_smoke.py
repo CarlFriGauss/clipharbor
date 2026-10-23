@@ -53,6 +53,23 @@ def main():
             with opener.open(base+"/launch/"+info["token"]) as response:
                 assert b"ClipHarbor" in response.read()
             assert api("/api/health")["desktop"] is True
+            # A packaged build includes the publisher registration, never the
+            # publisher's signed-in account. Both feature panels start signed out
+            # with an isolated per-user data directory.
+            accounts = api("/api/connections")
+            assert not any(account["connected"] for account in accounts.values())
+            google_registration = exe.parent / "_internal/google-oauth-client.json"
+            assert accounts["drive"]["googleConfigured"] == google_registration.is_file()
+            assert accounts["youtube"]["googleConfigured"] == google_registration.is_file()
+            if google_registration.is_file():
+                registration = json.loads(google_registration.read_text(encoding="utf-8"))
+                assert set(registration) == {"installed"}
+                assert set(registration["installed"]) <= {"client_id", "client_secret"}
+                assert registration["installed"]["client_id"]
+            assert not (exe.parent / "_internal/.connections").exists()
+            for logo in ("drive", "youtube", "x", "facebook"):
+                with opener.open(base+"/static/logos/"+logo+".svg") as response:
+                    assert b"<svg" in response.read()
             # Second launch must reuse the running app, not create a second server.
             subprocess.run([str(exe), "--no-browser"], env=env, check=True, timeout=30,
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -104,7 +121,8 @@ def main():
             print(json.dumps({"ok": True, "version": info["version"], "export": status["result"]["media"]["duration"],
                               "graphical_setup": args.graphical_setup,
                               "gui_runtime": gui_runtime,
-                              "checks": ["isolated PATH", "authenticated launch", "single instance", "save/open project",
+                              "checks": ["isolated PATH", "authenticated launch", "publisher Google registration",
+                                         "no bundled user account", "destination logos", "single instance", "save/open project",
                                          "first-run media tools", "waveform", "MP3 export", "inspect/download", "bundled Node", "clean quit"]}))
         finally:
             if process.poll() is None:
