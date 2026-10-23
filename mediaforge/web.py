@@ -331,7 +331,7 @@ def create_app() -> Flask:
         result = {"path": str(path), "token": registry.add(path), "media": probe(path)}
         if provider not in {"local", "drive"} and not result["media"].get("video"):
             raise ValueError("Social exports require a video.")
-        job = jobs.start("upload", retry_upload, result=result, provider=provider, options=options)
+        job = jobs.start("share" if provider == "facebook_browser" else "upload", retry_upload, result=result, provider=provider, options=options)
         return jsonify(job.public()), 202
 
     @app.post("/api/renders")

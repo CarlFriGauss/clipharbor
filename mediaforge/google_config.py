@@ -20,6 +20,10 @@ def google_client(legacy_account=None):
     else:
         override = os.environ.get("CLIPHARBOR_GOOGLE_CLIENT_FILE")
         path = Path(override).expanduser() if override else RESOURCE_ROOT / "google-oauth-client.json"
+        if not override and not path.exists():
+            # Public native-app identity, also shipped in the installer. This
+            # contains no signed-in user's access or refresh tokens.
+            path = RESOURCE_ROOT / "publisher" / "google-oauth-client.json"
         if path.exists():
             try:
                 installed = json.loads(path.read_text(encoding="utf-8")).get("installed", {})

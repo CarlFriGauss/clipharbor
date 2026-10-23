@@ -23,7 +23,8 @@ from .credential_store import SecureCredentialStore, CredentialStoreError
 from .google_config import google_client, GoogleConfigurationError
 
 CHUNK = 4 * 1024 * 1024
-DESTINATIONS = {"local", "drive", "youtube", "x", "facebook"}
+DESTINATIONS = {"local", "drive", "youtube", "x", "facebook", "facebook_browser"}
+FACEBOOK_BROWSER_URL = "https://www.facebook.com/"
 SCOPES = {
     "drive": "https://www.googleapis.com/auth/drive.file",
     "youtube": "https://www.googleapis.com/auth/youtube.upload",
@@ -324,6 +325,12 @@ def validate_destination(provider, output_format, options=None):
         raise ValueError("Unknown export destination")
     if provider == "local":
         return
+    if provider == "facebook_browser":
+        if output_format != "mp4":
+            raise ValueError("Choose MP4 video for Facebook browser sharing.")
+        if (options or {}).get("facebookTarget", "profile") not in {"profile", "page"}:
+            raise ValueError("Choose a Facebook personal profile or Page.")
+        return  # Facebook handles profile sign-in and posting in the browser.
     if not connections.status()[provider]["connected"]:
         raise ValueError("Connect this destination before starting the export.")
     if provider != "drive" and output_format != "mp4":
@@ -493,6 +500,16 @@ def upload(context, *, result, provider, options=None):
     validate_destination(provider, path.suffix.lower().lstrip("."), options)
     if provider != "drive" and not result.get("media", {}).get("video"):
         raise ValueError("Social exports require a video.")
+    if provider == "facebook_browser":
+        context.update(98, "Video ready — finish posting in Facebook")
+        try:
+            opened = bool(webbrowser.open(FACEBOOK_BROWSER_URL))
+        except (OSError, webbrowser.Error):
+            opened = False
+        # A browser handoff is not an upload receipt. Never mark it published.
+        return {**result, "handoff": {"provider": provider, "url": FACEBOOK_BROWSER_URL,
+                "target": options.get("facebookTarget", "profile"),
+                "caption": str(options.get("description", ""))[:5000], "browserOpened": opened}}
     token = access_token(provider)
     context.update(81, "Connecting to export destination")
     if provider == "drive":

@@ -95,18 +95,25 @@ function trackJob(job) {
 function completeJob(job) {
   state.lastResult = job.result; const media = job.result.media, isDownload = job.kind === "download";
   const cloudDownload = Boolean(job.result.cloudDownloadId), localAvailable = !cloudDownload && Boolean(job.result.path);
+  const facebookProfile=job.result.handoff?.provider==="facebook_browser";
   const finalMp4=isDownload&&media.kind==="video"&&media.name.toLowerCase().endsWith(".mp4");
-  $("#completeTitle").textContent = cloudDownload ? "Saved to Google Drive" : finalMp4 ? "Final MP4 ready" : isDownload ? "Download complete" : job.result.delivery ? "Export complete" : job.kind === "upload" ? "Upload complete" : "Render complete";
+  $("#completeTitle").textContent = facebookProfile ? "Video ready for Facebook" : cloudDownload ? "Saved to Google Drive" : finalMp4 ? "Final MP4 ready" : isDownload ? "Download complete" : job.result.delivery ? "Export complete" : job.kind === "upload" ? "Upload complete" : "Render complete";
   let note = finalMp4 ? `${media.name} · ${formatBytes(media.size)} · Ready to use. No editing or additional export is required.` : `${media.name} · ${formatBytes(media.size)}`;
   if(job.result.audioTrack)note+=` · Audio: ${job.result.audioTrack}.`;
   if (isDownload && job.result.xCompatible) note += job.result.xConversionSkipped ? " · Extra X conversion was unnecessary." : " · Verified for X.";
   if (!isDownload && job.result.xCompatible) note += " · Verified for X upload.";
   if(job.result.delivery) note += " · " + destinationNames[job.result.delivery.provider] + " · " + job.result.delivery.visibility;
+  if(facebookProfile)note+=job.result.handoff.browserOpened?" · Facebook opened in your browser. Attach this file to finish posting.":" · Open Facebook below and attach this file to finish posting.";
   if(cloudDownload) note += job.result.localAvailable === false ? " · Temporary files removed from this computer." : " · " + job.result.cleanupWarning;
   $("#completeDone").textContent = cloudDownload ? "Done" : "Done — use this file";
   for(const id of ["#revealResult", "#shareResult", "#editResult"]) $(id).classList.toggle("hidden", !localAvailable);
-  $("#openDelivery").classList.toggle("hidden",!job.result.delivery);
+  $("#facebookHandoff").classList.toggle("hidden",!facebookProfile);
+  $("#facebookFinishHelp").textContent=(job.result.handoff?.target==="page"?"In Facebook, switch to the Page you manage first. ":"")+"Choose Photo/video, paste the copied file location into the file picker, then choose your audience and post. Your video has been prepared; it has not been uploaded or posted by ClipHarbor.";
+  $("#copyFacebookCaption").classList.toggle("hidden",!facebookProfile||!job.result.handoff.caption);
+  $("#facebookCopyStatus").textContent="";
+  $("#openDelivery").classList.toggle("hidden",!job.result.delivery&&!facebookProfile);
   if(job.result.delivery){$("#openDelivery").href=job.result.delivery.url;$("#openDelivery").textContent="Open in "+destinationNames[job.result.delivery.provider];}
+  if(facebookProfile){$("#openDelivery").href=job.result.handoff.url;$("#openDelivery").textContent="Open Facebook";}
   $("#completePath").classList.toggle("hidden", !localAvailable);
   $("#completeMessage").textContent = note;$("#completePath").textContent=job.result.path || "";$("#completeDialog").showModal();
   if(cloudDownload) refreshConnections().catch(()=>{});
@@ -205,7 +212,8 @@ function removeAsset(assetId) {
 }
 async function previewAsset(asset, clip = null, autoplay = false, timelinePreview = false) {
   if(state.playingTimeline&&!timelinePreview)stopTimelinePlayback();
-  if (!asset) return; state.selectedAssetId = asset.id; state.previewClipId = clip?.id || null; renderAssets();
+  if (!asset) return; state.selectedAssetId = asset.id; state.previewClipId = clip?.id || null;
+  if(!timelinePreview){if(!clip){clearSelection();renderTimeline();}renderInspector();}renderAssets();
   const requestId = state.previewRequest = (state.previewRequest || 0)+1;
   let src;
   try {
@@ -307,9 +315,27 @@ function removeSelection(ripple = false) {
 }
 
 function commonValue(clips, prop) { if (!clips.length) return null; const first = clips[0][prop]; return clips.every(clip => clip[prop] === first) ? first : null; }
+function inspectorContext() {
+  const clips=selectedClips(),layers=[...state.selectedLayerKeys],primary=findClip(state.primaryClipId);
+  if(layers.length)return {kind:"layers",clips,layers,asset:primary?findAsset(primary.assetId):null};
+  if(clips.length)return {kind:"sections",clips,layers:[],asset:primary?findAsset(primary.assetId):null};
+  const asset=findAsset(state.selectedAssetId);return {kind:asset?"source":"empty",clips:[],layers:[],asset};
+}
 function renderInspector() {
-  const clips = selectedClips(), primary = findClip(state.primaryClipId); $("#inspectorEmpty").classList.toggle("hidden", !!clips.length); $("#clipInspector").classList.toggle("hidden", !clips.length);
-  $("#selectionLabel").textContent = clips.length ? `${clips.length} section${clips.length === 1 ? "" : "s"}` : "No selection"; $("#selectionLabel").title = ""; $("#multiSelectionNotice").classList.toggle("hidden", clips.length < 2);
+  const context=inspectorContext(),clips=context.clips,primary=findClip(state.primaryClipId),asset=context.asset;
+  $("#inspectorEmpty").classList.toggle("hidden",context.kind!=="empty");$("#clipInspector").classList.toggle("hidden",!clips.length);$("#sourceProperties").classList.toggle("hidden",context.kind!=="source");$("#layerProperties").classList.toggle("hidden",context.kind!=="layers");
+  $("#propertiesContext").classList.toggle("hidden",context.kind==="empty");
+  const layerNames=context.layers.map(key=>{const [kind,layer]=key.split(":");return (kind==="video"?"V":"A")+(Number(layer)+1);});
+  $("#selectionLabel").textContent=context.kind==="layers"?layerNames.join(", "):clips.length?`${clips.length} section${clips.length===1?"":"s"}`:asset?"Source file":"No selection";$("#selectionLabel").title="";
+  $("#propertiesContext").textContent=context.kind==="layers"?`Layer ${layerNames.join(", ")} · ${clips.length} section${clips.length===1?"":"s"}`:clips.length?(clips.length===1?(asset?.media.name||"Timeline section"):"Selected timeline sections"):asset?.media.name||"";
+  if(context.kind==="source"){
+    const media=asset.media,rows=[["Type",media.kind],["Duration",exactTime(media.duration)],["File size",formatBytes(media.size)]];
+    if(media.video)rows.push(["Resolution",`${media.video.width} × ${media.video.height}`],["Frame rate",`${Number(media.video.fps||0).toFixed(2)} fps`],["Video codec",media.video.codec||"—"]);
+    if(media.audio)rows.push(["Audio codec",media.audio.codec||"—"],["Sample rate",`${media.audio.sampleRate||"—"} Hz`],["Channels",media.audio.channels||"—"]);
+    $("#sourceProperties").innerHTML=rows.map(([name,value])=>`<dt>${escapeHtml(name)}</dt><dd>${escapeHtml(value)}</dd>`).join("");
+  }
+  if(context.kind==="layers")$("#layerProperties").innerHTML=context.layers.map(key=>{const [kind,rawLayer]=key.split(":"),layer=Number(rawLayer),track=getTrackState(kind,layer);return `<div class="layer-property-row"><strong>${kind==="video"?"Video":"Audio"} layer ${layer+1}</strong><div class="layer-property-actions">${(kind==="video"?["hidden","muted","locked"]:["muted","locked"]).map(action=>`<button type="button" data-inspector-layer="${escapeHtml(key)}" data-layer-property="${action}" aria-pressed="${Boolean(track[action])}">${action==="hidden"?"Hide video":action==="muted"?"Mute":"Lock"}</button>`).join("")}</div></div>`;}).join("");
+  $("#multiSelectionNotice").classList.toggle("hidden",clips.length<2);
   if (clips.length > 1) $("#multiSelectionNotice").textContent = `Editing ${clips.length} sections across ${new Set(clips.map(c => layerKey(c.kind,c.layer))).size} layer(s)`;
   if (!clips.length) return;
   $$('[data-prop]').forEach(input => {
@@ -628,9 +654,8 @@ function wireEvents() {
   new ResizeObserver(scheduleWaveforms).observe($("#timelineScroller"));
   $("#positionInput").addEventListener("change",event=>{const t=parsePosition(event.target.value);if(Number.isFinite(t))setPlayhead(t);else toast("Invalid time","Use hours:minutes:seconds or seconds.",true);event.target.value=exactTime(state.playhead);});
   $("#positionInput").addEventListener("keydown",event=>{if(event.key==="Enter"){event.target.blur();}if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(event.key)){event.preventDefault();setPlayhead(state.playhead+(["ArrowLeft","ArrowDown"].includes(event.key)?-1:1)*(event.shiftKey?1:.01));event.target.value=exactTime(state.playhead);}});
-  const divider=$("#panelDivider"),resizePreview=height=>{$("#editorView").style.setProperty("--preview-height",`${Math.max(150,Math.min($("#editorView").clientHeight-300,height))}px`);};
-  divider.addEventListener("pointerdown",event=>{event.preventDefault();const y=event.clientY,height=$(".editor-shell").getBoundingClientRect().height;const move=e=>resizePreview(height+e.clientY-y);const up=()=>{window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up);};window.addEventListener("pointermove",move);window.addEventListener("pointerup",up,{once:true});});
-  divider.addEventListener("keydown",event=>{if(["ArrowUp","ArrowDown"].includes(event.key)){event.preventDefault();resizePreview($(".editor-shell").getBoundingClientRect().height+(event.key==="ArrowUp"?-20:20));}});
+  wireEditorLayout();
+  $("#layerProperties").addEventListener("click",event=>{const button=event.target.closest("[data-inspector-layer]");if(!button)return;const [kind,layer]=button.dataset.inspectorLayer.split(":");changeTrackState(kind,Number(layer),button.dataset.layerProperty);});
   $("#timeline").addEventListener("click",event=>{
     if(state.ignoreClick)return;const action=event.target.closest("[data-track-action]");if(action){event.stopPropagation();const track=action.closest(".track");return changeTrackState(track.dataset.kind,Number(track.dataset.layer),action.dataset.trackAction);}
     const clipNode=event.target.closest("[data-clip-id]");if(clipNode){if(!event.ctrlKey&&!event.metaKey&&!event.shiftKey){const rect=clipNode.closest(".track-lane").getBoundingClientRect();setPlayhead((event.clientX-rect.left)/state.pxPerSecond);}return selectClip(clipNode.dataset.clipId,event);}const header=event.target.closest("[data-layer-key]");if(header){const track=header.closest(".track");return selectLayer(track.dataset.kind,Number(track.dataset.layer),event);}

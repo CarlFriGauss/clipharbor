@@ -2,14 +2,19 @@
 let exportSource = null;
 let exportDestination = localStorage.getItem("clipharbor-export-destination") || "local";
 let connectionStatus = {};
-const destinationNames = {local:"This computer",drive:"Google Drive",youtube:"YouTube",x:"X",facebook:"Facebook Page"};
+const destinationNames = {local:"This computer",drive:"Google Drive",youtube:"YouTube",x:"X",facebook:"Facebook Page",facebook_browser:"Facebook"};
+function facebookBrowserSelected() { return exportDestination==="facebook"&&$("#facebookTarget").value!=="page_api"; }
 async function refreshConnections() { connectionStatus=await api("/api/connections"); updateDestination(); updateDownloadDestination(); }
 function updateDestination() {
-  if(!destinationNames[exportDestination])exportDestination="local";
+  if(!destinationNames[exportDestination]||exportDestination==="facebook_browser")exportDestination="local";
   $$("[data-destination]").forEach(b=>{const selected=b.dataset.destination===exportDestination;b.classList.toggle("selected",selected);b.setAttribute("aria-pressed",String(selected));});
   const remote=exportDestination!=="local", social=remote&&exportDestination!=="drive", connected=Boolean(connectionStatus[exportDestination]?.connected);
   const google=["drive","youtube"].includes(exportDestination), account=connectionStatus[exportDestination]||{}, signingIn=googleSignIns.has(exportDestination);
-  $("#connectionPanel").classList.toggle("hidden",!remote);
+  const profile=facebookBrowserSelected();
+  $("#facebookTargetField").classList.toggle("hidden",exportDestination!=="facebook");
+  $("#facebookProfileHelp").classList.toggle("hidden",!profile);
+  $("#facebookProfileHelp").textContent=$("#facebookTarget").value==="page"?"ClipHarbor prepares your MP4 and opens Facebook. Switch to the Page you manage, choose Photo/video, attach the file, and post there. Your browser handles sign-in; no Facebook password or access token is saved in ClipHarbor.":"ClipHarbor prepares your MP4 and opens Facebook. Choose Photo/video, attach the file, and post there. Facebook does not allow apps to upload directly to personal profiles. Your browser handles sign-in; no Facebook password or access token is saved in ClipHarbor.";
+  $("#connectionPanel").classList.toggle("hidden",!remote||profile);
   $("#googleConnection").classList.toggle("hidden",!["drive","youtube"].includes(exportDestination)||connected);
   $("#tokenConnection").classList.toggle("hidden",!["x","facebook"].includes(exportDestination)||connected);
   $("#facebookPageField").classList.toggle("hidden",exportDestination!=="facebook");
@@ -27,17 +32,17 @@ function updateDestination() {
   if(document.activeElement!==$("#driveFolderId"))$("#driveFolderId").value=connectionStatus.drive?.folderId||"";
   $("#socialDetails").classList.toggle("hidden",!social);
   $("#youtubeVisibilityField").classList.toggle("hidden",exportDestination!=="youtube");
-  $("#publishField").classList.toggle("hidden",!["x","facebook"].includes(exportDestination));
+  $("#publishField").classList.toggle("hidden",profile||!["x","facebook"].includes(exportDestination));
   $("#publishLabel").textContent=exportDestination==="x"?"Publish this video as an X post":"Publish this video to the Facebook Page (otherwise upload unpublished)";
   $("#exportDescription").maxLength=exportDestination==="x"?280:5000;
   $("#renderFields").classList.toggle("hidden",Boolean(exportSource));
   $("#exportSourceNote").classList.toggle("hidden",!exportSource);
   $("#exportDuration").classList.toggle("hidden",Boolean(exportSource));
-  $("#deliveryTitleField").classList.toggle("hidden",!social||exportDestination==="x");
+  $("#deliveryTitleField").classList.toggle("hidden",!social||exportDestination==="x"||profile);
   $("#exportSourceNote").textContent=exportSource?"Upload the completed file directly: "+exportSource.media.name+". No additional render is needed.":"";
-  $("#exportStorageNote").textContent=remote?"A local copy is kept. Uploads run in the background; a failed upload can be retried from Activity.":"Save the finished file to your computer.";
-  $("#startExport").textContent=exportSource?(remote?"Upload to "+destinationNames[exportDestination]:"Done"):(remote?"Render & export to "+destinationNames[exportDestination]:"Start render");
-  $("#startExport").disabled=remote&&!connected;
+  $("#exportStorageNote").textContent=profile?"A local copy is kept. Finish the attachment, audience choice, and post in Facebook.":remote?"A local copy is kept. Uploads run in the background; a failed upload can be retried from Activity.":"Save the finished file to your computer.";
+  $("#startExport").textContent=profile?(exportSource?"Prepare video & open Facebook":"Render & open Facebook"):exportSource?(remote?"Upload to "+destinationNames[exportDestination]:"Done"):(remote?"Render & export to "+destinationNames[exportDestination]:"Start render");
+  $("#startExport").disabled=remote&&!profile&&!connected;
 }
 async function showExport(result=null) {
   exportSource=result;
@@ -48,9 +53,10 @@ async function showExport(result=null) {
   try{await refreshConnections();}catch(error){toast("Connections unavailable",error.message,true);}
 }
 function deliveryPayload() {
-  return {destination:exportDestination,deliveryOptions:{title:$("#deliveryTitle").value.trim()||$("#exportName").value.trim(),description:$("#exportDescription").value,folderId:$("#driveFolderId").value.trim(),privacy:$("#youtubeVisibility").value,publish:$("#exportPublish").checked}};
+  return {destination:facebookBrowserSelected()?"facebook_browser":exportDestination,deliveryOptions:{facebookTarget:$("#facebookTarget").value,title:$("#deliveryTitle").value.trim()||$("#exportName").value.trim(),description:$("#exportDescription").value,folderId:$("#driveFolderId").value.trim(),privacy:$("#youtubeVisibility").value,publish:$("#exportPublish").checked}};
 }
 function deliveryMarkup(job) {
+  if(job.result?.handoff)return '<button class="button secondary" data-facebook-ready="'+escapeHtml(job.id)+'">Continue in Facebook</button><span class="job-status">Video ready · finish posting in Facebook</span>';
   const d=job.result?.delivery;
   if(d)return '<a class="button secondary" href="'+escapeHtml(d.url)+'" target="_blank" rel="noopener noreferrer">Open in '+escapeHtml(destinationNames[d.provider])+'</a><span class="job-status">'+escapeHtml(d.visibility)+'</span>';
   if(job.status==="failed"&&job.result?.path&&job.deliveryRequest)return '<button class="button secondary" data-retry-upload="'+escapeHtml(job.id)+'">Retry upload</button>';
@@ -102,6 +108,8 @@ async function connectDestination() {
   updateDestination();
 }
 function wireDestinations() {
+  const facebookTarget=localStorage.getItem("clipharbor-facebook-target");$("#facebookTarget").value=["profile","page","page_api"].includes(facebookTarget)?facebookTarget:"profile";
+  $("#facebookTarget").addEventListener("change",()=>{localStorage.setItem("clipharbor-facebook-target",$("#facebookTarget").value);$("#destinationToken").value="";$("#exportPublish").checked=false;updateDestination();});
   $$("[data-destination]").forEach(button=>button.addEventListener("click",()=>{
     exportDestination=button.dataset.destination;localStorage.setItem("clipharbor-export-destination",exportDestination);
     $("#destinationToken").value="";$("#exportPublish").checked=false;
@@ -115,10 +123,18 @@ function wireDestinations() {
   });
   $("#shareResult").addEventListener("click",()=>{$("#completeDialog").close();showExport(state.lastResult);});
   $("#jobsList").addEventListener("click",event=>{
+    const facebook=event.target.closest("[data-facebook-ready]");if(facebook)completeJob(state.jobs.get(facebook.dataset.facebookReady));
     const retry=event.target.closest("[data-retry-upload]");if(retry)retryDelivery(retry.dataset.retryUpload);
     const share=event.target.closest("[data-job-share]");if(share)showExport(state.jobs.get(share.dataset.jobShare)?.result);
   });
   window.addEventListener("storage",event=>{if(event.key==="clipharbor-connections-changed")refreshConnections().catch(()=>{});});
   window.addEventListener("focus",()=>refreshConnections().catch(()=>{}));
+  $("#copyFacebookPath").addEventListener("click",()=>copyFacebookText(state.lastResult?.path,"Video location copied. In Facebook, choose Photo/video and paste it into the file picker."));
+  $("#copyFacebookCaption").addEventListener("click",()=>copyFacebookText(state.lastResult?.handoff?.caption,"Post text copied. Paste it into your Facebook post."));
+}
+
+async function copyFacebookText(text, message) {
+  try { await navigator.clipboard.writeText(text||"");$("#facebookCopyStatus").textContent=message; }
+  catch(error) { $("#facebookCopyStatus").textContent="Copy was unavailable. Select the video location above and copy it, or use Open folder to find your video."; }
 }
 document.addEventListener("DOMContentLoaded",wireDestinations);

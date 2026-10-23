@@ -24,7 +24,7 @@ hashes when replacing vendor tools. Do not use an FFmpeg build with `--enable-no
 Read THIRD-PARTY-NOTICES.md. The spec deliberately excludes FFmpeg binaries;
 do not replace the explicit file list with the entire vendor directory.
 
-Output: `dist\installer\ClipHarbor-Setup-0.6.0-win-x64.exe`.
+Output: `dist\installer\ClipHarbor-Setup-0.6.1-win-x64.exe`.
 The build script reads `mediaforge.runtime.VERSION` and passes it to Inno Setup
 so the application and installer versions agree.
 
@@ -67,7 +67,11 @@ Drive API and/or YouTube Data API v3, and complete the required consent and
 production verification. End users should only click **Sign in with Google**.
 They must never create Cloud projects or supply JSON credentials themselves.
 
-Before building, put that publisher registration in the ignored root file
+The official installer includes the native-app registration; it is excluded
+from Git. Source-build publishers configure their own app registration and consent
+project. This identifies the app; it is not a user's account authorization.
+
+Before building, put that registration in the ignored root file
 `google-oauth-client.json`, or set `CLIPHARBOR_GOOGLE_CLIENT_FILE` to its absolute
 path. The spec validates and normalizes the registration, includes only its
 client ID and optional desktop client secret, and rejects token-bearing input.
