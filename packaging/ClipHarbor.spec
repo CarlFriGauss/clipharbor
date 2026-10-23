@@ -30,6 +30,8 @@ datas = [(str(root / 'static'), 'static'), (str(root / 'templates'), 'templates'
          (str(root / 'packaging' / 'FAMILY-README.txt'), '.')]
 # This is the publisher's Desktop app registration, never an end user's tokens.
 google_client_file = Path(os.environ.get('CLIPHARBOR_GOOGLE_CLIENT_FILE', root / 'google-oauth-client.json')).expanduser()
+if not os.environ.get('CLIPHARBOR_GOOGLE_CLIENT_FILE') and not google_client_file.is_file():
+    google_client_file = root / 'publisher' / 'google-oauth-client.json'
 if google_client_file.is_file():
     import json
     registration = json.loads(google_client_file.read_text(encoding='utf-8'))

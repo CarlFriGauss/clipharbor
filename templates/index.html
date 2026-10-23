@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.6.0') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.6.1') }}">
 </head>
 <body>
   <header class="topbar">
@@ -128,15 +128,21 @@
         </div>
       </div>
 
-      <div class="editor-shell">
-        <aside class="asset-panel panel">
+      <div id="editorShell" class="editor-shell">
+        <nav class="editor-tool-rail" aria-label="Editor panels">
+          <button id="toggleMediaPanel" class="media-panel-toggle" type="button" aria-label="Hide media panel" aria-controls="mediaPanel" aria-expanded="true" aria-pressed="true" title="Show or hide media">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 10h18"/></svg>
+          </button>
+        </nav>
+        <aside id="mediaPanel" class="asset-panel panel" aria-label="Project media">
           <div class="panel-title"><h3>Media</h3><span id="assetCount">0 files</span></div>
           <div id="assetList" class="asset-list">
             <button id="emptyAssetButton" class="empty-assets"><span>＋</span><strong>Add video or audio</strong><small>Sources remain untouched</small></button>
           </div>
         </aside>
+        <button id="mediaDivider" class="editor-divider vertical-divider" type="button" role="separator" aria-label="Resize media panel" aria-orientation="vertical" aria-valuemin="140" aria-valuemax="420" aria-valuenow="220"></button>
 
-        <section class="preview-panel panel">
+        <section id="previewPanel" class="preview-panel panel" aria-label="Video preview">
           <div id="playerStage" class="player-stage">
             <div id="playerEmpty" class="player-empty"><span>▶</span><p>Select a source or timeline clip</p></div>
             <video id="videoPlayer" class="media-player hidden" controls playsinline></video>
@@ -145,13 +151,18 @@
           </div>
           <div class="preview-controls">
             <div class="preview-meta"><span id="previewName">No media selected</span><span id="previewInfo">—</span></div>
+            <button id="previewFullscreen" class="tool-button" type="button" title="Fullscreen preview" aria-label="Enter preview fullscreen">⛶</button>
             <button id="cutAtPlayer" class="tool-button scissors" title="Cut selected layers at the player position (S)" aria-label="Cut at player position">✂</button>
           </div>
         </section>
+        <button id="propertiesDivider" class="editor-divider vertical-divider" type="button" role="separator" aria-label="Resize properties panel" aria-orientation="vertical" aria-valuemin="180" aria-valuemax="420" aria-valuenow="260"></button>
 
-        <aside class="inspector-panel panel">
-          <div class="panel-title"><h3>Inspector</h3><span id="selectionLabel">No selection</span></div>
-          <div id="inspectorEmpty" class="inspector-empty">Select one or more sections. Changes apply to every selected section.</div>
+        <aside id="propertiesPanel" class="inspector-panel panel" aria-label="Selection properties">
+          <div class="panel-title"><h3>Properties</h3><span id="selectionLabel">No selection</span></div>
+          <p id="propertiesContext" class="properties-context hidden"></p>
+          <dl id="sourceProperties" class="source-properties hidden"></dl>
+          <div id="layerProperties" class="layer-properties hidden"></div>
+          <div id="inspectorEmpty" class="inspector-empty">Select a media file, timeline section, or layer to see its properties.</div>
           <div id="clipInspector" class="clip-inspector hidden">
             <div id="multiSelectionNotice" class="multi-selection hidden"></div>
             <div class="property-grid">
@@ -168,7 +179,7 @@
         </aside>
       </div>
 
-      <div id="panelDivider" class="panel-divider" role="separator" aria-label="Resize preview and timeline" aria-orientation="horizontal" tabindex="0"></div>
+      <button id="panelDivider" class="panel-divider editor-divider" type="button" role="separator" aria-label="Resize preview and timeline" aria-orientation="horizontal" aria-valuemin="100" aria-valuemax="800" aria-valuenow="360"></button>
       <section class="timeline-panel panel">
         <div class="timeline-toolbar">
           <div class="transport"><button id="jumpStart" class="icon-button" title="Go to start">|◀</button><button id="playPause" class="play-button" title="Play / pause (Space)">▶</button><input id="positionInput" aria-label="Playhead time" title="Exact position: HH:MM:SS.mmm or seconds. Arrow keys step 0.01 seconds; Shift steps 1 second." value="00:00.000"><span id="timeDisplay">/ 00:00.00</span></div>
@@ -213,6 +224,12 @@
     <p class="eyebrow">Ready</p><h2 id="completeTitle">Download complete</h2>
     <p id="completeMessage"></p>
     <code id="completePath" class="complete-path"></code>
+    <section id="facebookHandoff" class="connection-panel hidden" aria-label="Finish posting to Facebook">
+      <strong>Finish posting in Facebook</strong>
+      <p id="facebookFinishHelp" class="dialog-help">Choose Photo/video in Facebook, paste the copied file location into the file picker, then choose your audience and post. Your video has been prepared; it has not been uploaded or posted by ClipHarbor.</p>
+      <div class="dialog-actions"><button id="copyFacebookPath" class="button secondary">Copy video location</button><button id="copyFacebookCaption" class="button secondary hidden">Copy post text</button></div>
+      <p id="facebookCopyStatus" class="dialog-help" role="status"></p>
+    </section>
     <div class="dialog-actions"><button id="completeDone" data-close-dialog class="button secondary">Done — use this file</button><button id="revealResult" class="button secondary">Open folder</button><a id="openDelivery" class="button secondary hidden" target="_blank" rel="noopener noreferrer">Open uploaded video</a><button id="shareResult" class="button secondary">Export / share</button><button id="editResult" class="button primary">Edit as new project</button></div>
   </dialog>
 
@@ -224,9 +241,13 @@
       <button type="button" class="destination" data-destination="drive" aria-pressed="false"><img src="/static/logos/drive.svg" alt="">Google Drive</button>
       <button type="button" class="destination" data-destination="youtube" aria-pressed="false"><img src="/static/logos/youtube.svg" alt="">YouTube</button>
       <button type="button" class="destination" data-destination="x" aria-pressed="false"><img src="/static/logos/x.svg" alt="">X</button>
-      <button type="button" class="destination" data-destination="facebook" aria-pressed="false"><img src="/static/logos/facebook.svg" alt="">Facebook Page</button>
+      <button type="button" class="destination" data-destination="facebook" aria-pressed="false"><img src="/static/logos/facebook.svg" alt="">Facebook</button>
     </div>
     <p id="exportStorageNote" class="dialog-help"></p>
+    <div id="facebookTargetField" class="hidden">
+      <label class="field"><span>Post to Facebook</span><select id="facebookTarget"><option value="profile">Personal profile · finish in Facebook</option><option value="page">Page I manage · finish in Facebook</option><option value="page_api">Page · direct API upload (advanced)</option></select></label>
+      <p id="facebookProfileHelp" class="dialog-help">ClipHarbor prepares your MP4 and opens Facebook. Choose Photo/video, attach the file, and post there. Facebook does not allow apps to upload directly to personal profiles. Your browser handles sign-in; no Facebook password or access token is saved in ClipHarbor.</p>
+    </div>
     <section id="connectionPanel" class="connection-panel hidden" aria-label="Destination connection">
       <div class="connection-heading"><strong id="connectionStatus"></strong><button id="disconnectDestination" class="button ghost hidden" type="button">Disconnect</button></div>
       <div id="googleConnection" class="hidden">
@@ -278,8 +299,9 @@
     <div id="projectList" class="project-list"></div>
   </dialog>
 
-  <script src="{{ url_for('static', filename='destinations.js', v='0.6.0') }}" defer></script>
-  <script src="{{ url_for('static', filename='download-destinations.js', v='0.6.0') }}" defer></script>
-  <script src="{{ url_for('static', filename='app.js', v='0.6.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='destinations.js', v='0.6.1') }}" defer></script>
+  <script src="{{ url_for('static', filename='download-destinations.js', v='0.6.1') }}" defer></script>
+  <script src="{{ url_for('static', filename='editor-layout.js', v='0.6.1') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js', v='0.6.1') }}" defer></script>
 </body>
 </html>

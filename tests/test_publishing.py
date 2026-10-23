@@ -182,6 +182,79 @@ def test_facebook_streams_file_and_defaults_to_unpublished(store, tmp_path, monk
     assert result["visibility"] == "unpublished"
 
 
+@pytest.mark.parametrize("browser_result", [True, False, OSError("No browser")])
+def test_facebook_browser_prepares_existing_file_without_credentials_or_upload(tmp_path, monkeypatch, browser_result):
+    path = tmp_path / "profile.mp4"
+    path.write_bytes(b"original-video")
+    local = {"path": str(path), "token": "registered", "media": {"video": True}}
+    opened = []
+    def open_browser(url):
+        opened.append(url)
+        if isinstance(browser_result, Exception):
+            raise browser_result
+        return browser_result
+    def forbidden(*args, **kwargs):
+        pytest.fail("Profile sharing must not request a token or upload to an API")
+    monkeypatch.setattr(p.webbrowser, "open", open_browser)
+    monkeypatch.setattr(p, "access_token", forbidden)
+    monkeypatch.setattr(p, "_request", forbidden)
+    monkeypatch.setattr(p.connections, "status", forbidden)
+    result = p.upload(Progress(), result=local, provider="facebook_browser", options={"description": "My caption", "publish": True})
+    assert result["path"] == str(path)
+    assert path.read_bytes() == b"original-video"
+    assert "delivery" not in result
+    assert result["handoff"] == {"provider": "facebook_browser", "url": "https://www.facebook.com/",
+                                "target": "profile", "caption": "My caption", "browserOpened": browser_result is True}
+    assert opened == ["https://www.facebook.com/"]
+
+
+def test_facebook_browser_rejects_audio_and_non_mp4_before_opening_browser(tmp_path, monkeypatch):
+    monkeypatch.setattr(p.webbrowser, "open", lambda *a: pytest.fail("Invalid media must not open Facebook"))
+    with pytest.raises(ValueError, match="MP4"):
+        p.validate_destination("facebook_browser", "mp3")
+    with pytest.raises(ValueError, match="personal profile or Page"):
+        p.validate_destination("facebook_browser", "mp4", {"facebookTarget": "somebody-else"})
+    path = tmp_path / "audio.mp4"
+    path.touch()
+    with pytest.raises(ValueError, match="video"):
+        p.upload(Progress(), result={"path": str(path), "media": {}}, provider="facebook_browser")
+
+
+def test_facebook_browser_render_handoff_uses_finished_render(monkeypatch):
+    from mediaforge import editor
+    local = {"path": "finished.mp4", "token": "registered", "media": {"video": True}}
+    monkeypatch.setattr(editor, "render", lambda *a, **k: local)
+    monkeypatch.setattr(p.webbrowser, "open", lambda *a: True)
+    result = p.render_and_publish(Progress(), provider="facebook_browser", delivery_options={"description": "Edited video", "facebookTarget": "page"})
+    assert result["path"] == "finished.mp4"
+    assert result["handoff"]["caption"] == "Edited video"
+    assert result["handoff"]["target"] == "page"
+    assert "delivery" not in result
+
+
+def test_facebook_browser_route_does_not_require_a_page_connection(tmp_path, monkeypatch):
+    from mediaforge import web
+    from mediaforge.jobs import Job
+    client = web.create_app().test_client()
+    path = tmp_path / "video.mp4"
+    path.touch()
+    monkeypatch.setattr(web.registry, "get", lambda *a: path)
+    monkeypatch.setattr(web.registry, "add", lambda *a: "registered")
+    monkeypatch.setattr(web, "probe", lambda *a: {"video": True})
+    calls = []
+    def start(kind, target, **kwargs):
+        calls.append((kind, kwargs))
+        return Job(id="share", kind=kind)
+    monkeypatch.setattr(web.jobs, "start", start)
+    response = client.post("/api/uploads", json={"token": "registered", "destination": "facebook_browser"})
+    assert response.status_code == 202
+    assert calls[0][0] == "share"
+    assert calls[0][1]["provider"] == "facebook_browser"
+    response = client.post("/api/renders", json={"destination": "facebook_browser", "project": {"clips": []}})
+    assert response.status_code == 400
+    assert "visible video" in response.json["error"]
+
+
 def test_failed_delivery_preserves_local_result_for_retry(store, monkeypatch):
     from mediaforge import editor
     manager = JobManager()

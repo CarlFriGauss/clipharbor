@@ -35,6 +35,16 @@ def saved_account(**changes):
             "expires_at": 0, "folder_id": "dedicated", **changes}
 
 
+def test_clean_source_checkout_uses_publisher_identity_without_a_user_account(account_store, tmp_path):
+    registration = tmp_path / "publisher" / "google-oauth-client.json"
+    registration.parent.mkdir()
+    registration.write_text(json.dumps({"installed": {"client_id": "publisher.apps.googleusercontent.com", "client_secret": "public-native-client"}}))
+    assert google_config.google_client()["installed"]["client_id"] == "publisher.apps.googleusercontent.com"
+    assert account_store.status()["youtube"]["googleConfigured"]
+    assert account_store.status()["drive"]["googleConfigured"]
+    assert not any(account["connected"] for account in account_store.status().values())
+
+
 def test_one_connection_survives_restart_and_serves_both_features(account_store, monkeypatch):
     from mediaforge import web
     account_store.put("drive", saved_account())

@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.6.0/ClipHarbor-Setup-0.6.0-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.6.1/ClipHarbor-Setup-0.6.1-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -14,7 +14,7 @@ It is designed around a workflow rather than a collection of scripts:
 4. For MP4 video, optionally request **X compatibility**. ClipHarbor probes the completed file and skips conversion when it already meets the compatibility profile.
 5. Send the completed file straight into a fresh timeline project, with the media already placed on the first compatible layer.
 6. Build a non-destructive edit from video and audio clips, split clips into independently editable sections, and render the result with FFmpeg.
-7. Choose **Google Drive** in Download to save space locally, or use **Export** to send a finished file to Drive, YouTube, X, or a Facebook Page. Each destination shows its logo and connection status.
+7. Choose **Google Drive** in Download to save space locally, or use **Export** for Drive, YouTube, X, or Facebook. Facebook personal profiles finish posting in the browser; Pages support direct upload. Each destination shows its logo.
 
 ## Requirements for manual source setup
 
@@ -31,7 +31,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.6.0/ClipHarbor-Setup-0.6.0-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.6.1/ClipHarbor-Setup-0.6.1-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -40,12 +40,20 @@ then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
 
-Version **0.6.0** adds direct Google Drive downloads and cloud/social export.
+Version **0.6.1** adds Facebook personal-profile export: prepare your video,
+open Facebook, and copy the video location and post text to finish posting there.
+It also improves the editor with resizable Media, preview, Properties, and
+timeline areas. The preview always fits the entire frame. A folder button toggles
+Media; Properties follows source files, timeline sections, and selected layers.
+Direct Google Drive downloads and cloud/social export remain included.
 For Drive, click **Sign in with Google** once; Download and Export share the same
 protected connection and dedicated folder. No Google Drive desktop installation,
 credentials file, or developer setup is needed in the Windows installer.
 YouTube requires its own Google upload permission. X and Facebook Page publishing
-require the platform tokens described below. [Release notes](packaging/RELEASE-0.6.0.md)
+require the platform tokens described below. Personal-profile sharing needs no
+Facebook token in ClipHarbor. Each installer user signs in to their own account.
+Advanced source builds need the publisher registration described below.
+[Release notes](packaging/RELEASE-0.6.1.md)
 explain the supported destinations and validation. The earlier Tcl/Tk startup
 fix remains included; install over the old version without deleting projects.
 
@@ -264,6 +272,21 @@ Every timeline section stores:
 
 Layer controls provide visibility, mute, and lock states. Add audio sources for music, voice-over, or effects. Video sections may be connected one after another or stacked on higher layers. Undo/redo and optional ripple deletion make structural edits recoverable. Every audio-bearing section—including a video clip's embedded audio—displays a cached peak waveform, and timeline playback mixes every audible video/audio section while keeping the visible video synchronized to the same playhead. Audio auto-balance (the scale button) is enabled by default: added audio is smoothly ducked under active video sound, all tracks pass through one shared Web Audio mixer, and master peak protection prevents digital clipping. Disable the scale button when deliberately mixing only with the section volume controls. The FFmpeg export applies the same balancing and peak protection.
 
+The editor has Media on the left, an uncropped preview in the center, Properties
+on the right, and a timeline across the full bottom width. Drag either vertical
+divider or the horizontal timeline divider to resize the workspace. Click the
+folder icon to hide or restore Media; yellow means open. Panel sizes and the
+Media toggle are remembered on this browser. The preview fits the entire frame
+for portrait and landscape video, including while resizing. Fullscreen is a
+separate button; when native browser fullscreen is unavailable, the preview
+expands inside the browser window. Escape or the exit button restores the editor.
+
+Properties shows file details for a Media selection, editable section settings
+for a timeline selection, and layer controls for selected layer labels (V1, A1,
+and so on). Even an empty layer has its own properties. Multiple selected sections
+retain common-value and mixed-value editing. Hiding Media does not change the
+selection or its Properties.
+
 Cuts do not create playback discontinuities. Adjacent sections on the same layer that touch in both timeline time and source time share one uninterrupted preview chain. Crossing their cut edge changes the independently editable section state without recreating a media player or seeking back to a keyframe.
 
 Normal playback never performs backward corrective seeks. Small clock differences are corrected by imperceptibly varying the non-master playback rate within a narrow range, and the timeline clock is monotonic. Explicit seeks are reserved for user actions such as scrubbing or intentionally jumping to a non-contiguous source section.
@@ -351,12 +374,17 @@ and renews short-lived access tokens automatically. Sign-in is requested again
 when Google authorization expires or is revoked. A network failure preserves the
 saved authorization for a later retry.
 
-The publisher must register one Google OAuth **Desktop app** client for ClipHarbor
-and enable Drive API and/or YouTube Data API v3. Configure consent and production
-verification before distributing the app. Supply the registration through
-`CLIPHARBOR_GOOGLE_CLIENT_FILE`, or put an ignored `google-oauth-client.json` at
-the resource root before building. The installer spec embeds only that publisher
-registration under a normalized file name. Source deployments may alternatively
+The official installer includes ClipHarbor's Google OAuth **Desktop app**
+registration. Each user connects their own Drive or YouTube account. No publisher
+account or user token is included. Google permissions, verification rules, and
+account limits still apply. The registration is excluded from Git; source builds
+need a publisher-supplied registration before Google sign-in is available.
+
+Source-build publishers register their own Desktop app, enable the relevant APIs,
+and configure consent and production verification. Supply the registration
+through `CLIPHARBOR_GOOGLE_CLIENT_FILE`, or put an ignored
+`google-oauth-client.json` at the resource root before building. The installer spec
+embeds only that publisher registration under a normalized file name. Source builds may alternatively
 set `CLIPHARBOR_GOOGLE_CLIENT_ID` and `CLIPHARBOR_GOOGLE_CLIENT_SECRET`. These
 identify the app; they are separate from every user's authorization. Desktop
 client registrations cannot be treated as confidential secrets in a distributed
@@ -393,7 +421,24 @@ this video as an X post** selection, waits for media processing, and then create
 the post. Token expiry requires reconnecting. Platform access/usage charges and
 account-specific media limits apply.
 
-Facebook supports **Pages**, not personal profile publishing. Connect a Page ID
+For a **personal Facebook profile**, choose **Facebook → Personal profile**.
+ClipHarbor prepares an MP4 and opens Facebook in your default browser. Click
+**Copy video location**, choose **Photo/video** in Facebook, and paste the location
+into its file picker. **Copy post text** copies your optional caption. Choose
+your audience and finish posting in Facebook. Existing MP4 downloads need no
+additional render. If the browser cannot open automatically, use **Open Facebook**
+in the completion dialog. Activity's **Continue in Facebook** reopens the file
+instructions. ClipHarbor reports the video as ready, never as already posted.
+
+Meta does not allow direct app publishing to personal profiles; its Share Dialog
+shares links rather than attaching a local video. Facebook sign-in stays in your
+browser, and ClipHarbor does not request or save a Facebook password or token for
+this workflow. See [Meta's sharing documentation](https://developers.facebook.com/documentation/sharing/reference/share-dialog).
+
+For a **Facebook Page**, choose **Page I manage · finish in Facebook** and switch
+to your Page in Facebook before attaching the video. This needs no developer
+configuration. For direct API uploads instead, choose **Page · direct API upload
+(advanced)**. Connect a Page ID
 and a Page access token granted by a person allowed to create content on that
 Page, with pages_manage_posts and pages_read_engagement permissions
 (pages_show_list is also needed when obtaining the Page token). Exports default
@@ -432,12 +477,15 @@ Run the existing regression suite and the adapter/security tests:
 The publishing tests cover chunk recovery, processing failures, saved-folder
 reuse, credential protection, preflight validation, origin checks, and preserving
 a failed export for retry. They mock provider responses and do not establish that
-a real account has permission to upload. Live Drive, YouTube, X, and Facebook
-tests require their own app credentials and account authorization.
+a real account has permission to upload. Live Drive, YouTube, X, and Facebook Page
+API tests require the relevant platform configuration and each user's authorization.
 
 Release validation also exercised a real Drive sign-in, export upload, direct
 Drive download, shared connection after restart, and automatic Google token
 renewal. The uploaded file's size and folder were verified, and the direct
-download removed its temporary local files. YouTube, X, and Facebook publishing
-have adapter tests; real-account publishing for those platforms is not yet
-verified in this release.
+download removed its temporary local files. YouTube, X, and Facebook Page publishing
+have adapter tests. Facebook personal-profile browser sharing was tested with a
+generated three-second video and a successful **Only me** post. Direct Facebook
+Page API publishing and X still need real-account validation. YouTube sign-in
+and upload permission were verified; its live upload test is deferred while the
+test account has a temporary posting restriction.
