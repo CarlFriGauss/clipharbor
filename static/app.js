@@ -92,6 +92,18 @@ function trackJob(job) {
     } catch (error) { toast("Lost job status", error.message, true); }
   }; setTimeout(poll, 400);
 }
+async function discoverBackgroundJobs() {
+  try {
+    const {jobs} = await api("/api/jobs");
+    for (const job of jobs) {
+      const existing = state.jobs.get(job.id);
+      if (existing) { state.jobs.set(job.id, {...job, deliveryRequest: existing.deliveryRequest}); continue; }
+      if (["queued", "running"].includes(job.status)) trackJob(job);
+      else state.jobs.set(job.id, job);
+    }
+    updateJobs();
+  } catch { /* A temporary disconnect must not interrupt the user's timeline. */ }
+}
 function completeJob(job) {
   state.lastResult = job.result; const media = job.result.media, isDownload = job.kind === "download";
   const cloudDownload = Boolean(job.result.cloudDownloadId), localAvailable = !cloudDownload && Boolean(job.result.path);
@@ -670,6 +682,15 @@ function wireEvents() {
 }
 async function init() {
   wireEvents();$("#timelineZoom").value=sliderFromZoom(state.pxPerSecond);await restoreDraft();renderEditor();try{const health=await api("/api/health");$("#systemStatus").textContent=`FFmpeg ready · v${health.version}`;$("#outputPath").value=health.defaultOutput;$("#exportPath").value=health.defaultOutput;$("#quitApp").classList.toggle("hidden",!health.desktop);}catch(error){$("#systemStatus").textContent="Media tools unavailable";toast("Startup check failed",error.message,true);}
+  if (location.hash === "#activity") setView("jobs");
+  if (location.hash === "#download" || location.hash === "#drive") setView("download");
+  if (location.hash === "#drive") {
+    downloadDestination = "drive";
+    localStorage.setItem("clipharbor-download-destination", "drive");
+    updateDownloadDestination();
+  }
+  await discoverBackgroundJobs();
+  setInterval(() => { if (!document.hidden) discoverBackgroundJobs(); }, 5000);
   $("#quitApp").addEventListener("click",async()=>{
     if(!confirm("Quit ClipHarbor? Save your project first if you want to continue later. Closing this app stops its local server."))return;
     try{await api('/api/desktop/quit',{method:'POST',body:'{}'});stopTimelinePlayback();document.body.innerHTML='<main style="padding:4rem"><h1>ClipHarbor is closed</h1><p>You can close this tab. Use the desktop shortcut to open the app again.</p></main>';}

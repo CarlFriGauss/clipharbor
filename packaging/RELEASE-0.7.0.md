@@ -56,6 +56,12 @@ smoke check exercises native bridge download/progress, background engine startup
 and clean shutdown with developer tools removed from PATH, in addition to the
 existing media, project, and graphical first-run checks.
 
+A live Chrome test loaded this extension, selected a custom output folder, and
+successfully downloaded the original Facebook test reel into that folder.
+The installed upgrade retained the existing Google Drive connection. Protocol
+and extension regressions also passed in GitHub Actions on Windows, macOS, and
+Linux. Live Edge UI and Unix browser registration still need platform testing.
+
 The four-area editor, Facebook browser handoff, and other export integrations
 remain included. YouTube live upload testing remains deferred until the test
 account's temporary restriction ends. No new social post is made in this release.
