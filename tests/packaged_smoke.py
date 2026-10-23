@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import struct
 import tempfile
 import time
 import threading
@@ -50,6 +51,19 @@ def main():
                 request = urllib.request.Request(base+path, data=payload, headers={"Content-Type": "application/json"})
                 with opener.open(request, timeout=60) as response:
                     return json.load(response)
+            bridge_exe = exe.with_name("ClipHarborBridge.exe")
+            assert bridge_exe.is_file()
+            def extension(action, **fields):
+                payload = json.dumps({"protocol": 1, "action": action, **fields}).encode()
+                response = subprocess.run([str(bridge_exe), "chrome-extension://nopjlekidanihaoahnpcnkacdpgljejl/"],
+                    input=struct.pack("=I", len(payload)) + payload, capture_output=True, env=env, check=True, timeout=65,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+                length = struct.unpack("=I", response[:4])[0]
+                assert len(response) == 4 + length, "Native stdio contains extra data"
+                value = json.loads(response[4:])
+                assert value["ok"], value
+                assert info["token"] not in response.decode(errors="replace"), "Desktop session must stay out of the extension"
+                return value
             with opener.open(base+"/launch/"+info["token"]) as response:
                 assert b"ClipHarbor" in response.read()
             assert api("/api/health")["desktop"] is True
@@ -111,19 +125,45 @@ def main():
                         break
                     time.sleep(.1)
                 assert downloaded["status"] == "completed", downloaded
+                assert extension("status")["version"] == info["version"]
+                browser_job = extension("download", url=url, destination="local", outputFormat="mp3")["job"]
+                for _ in range(100):
+                    browser_result = extension("job", jobId=browser_job["id"])["job"]
+                    if browser_result["status"] not in ("queued", "running"):
+                        break
+                    time.sleep(.1)
+                assert browser_result["status"] == "completed", browser_result
+                assert Path(browser_result["path"]).is_file()
+                assert browser_job["id"] in [job["id"] for job in api("/api/jobs")["jobs"]]
             finally:
                 source_server.shutdown()
                 source_server.server_close()
             assert subprocess.check_output([str(tools/"node.exe"), "--version"], env=env).startswith(b"v22")
             api("/api/desktop/quit", {})
             assert process.wait(timeout=20) == 0
+            # A browser click can start the installed engine without opening its
+            # editor or relying on developer Python/FFmpeg/Node installations.
+            assert extension("status")["version"] == info["version"]
+            new_info = json.loads((root / "instance.json").read_text())
+            assert new_info["pid"] != process.pid
+            new_client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            shutdown = urllib.request.Request(f"http://127.0.0.1:{new_info['port']}/api/desktop/quit", data=b"{}",
+                headers={"Content-Type": "application/json", "Cookie": "clipharbor-session=" + new_info["token"]})
+            with new_client.open(shutdown, timeout=10) as response:
+                assert json.load(response)["ok"]
+            for _ in range(100):
+                if not (root / "instance.json").exists():
+                    break
+                time.sleep(.1)
+            assert not (root / "instance.json").exists(), "Auto-started engine must shut down cleanly"
             assert (root/"projects"/f"{saved['id']}.json").is_file()
             print(json.dumps({"ok": True, "version": info["version"], "export": status["result"]["media"]["duration"],
                               "graphical_setup": args.graphical_setup,
                               "gui_runtime": gui_runtime,
                               "checks": ["isolated PATH", "authenticated launch", "publisher Google registration",
                                          "no bundled user account", "destination logos", "single instance", "save/open project",
-                                         "first-run media tools", "waveform", "MP3 export", "inspect/download", "bundled Node", "clean quit"]}))
+                                         "first-run media tools", "waveform", "MP3 export", "inspect/download", "bundled Node", "native extension download",
+                                         "extension progress", "shared Activity", "cold engine startup", "clean quit"]}))
         finally:
             if process.poll() is None:
                 process.terminate()

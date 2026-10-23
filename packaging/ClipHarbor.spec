@@ -79,4 +79,14 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='ClipHarbor',
           debug=False, strip=False, upx=False, console=False,
           icon=str(root / 'static' / 'carl-logo.png'))
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='ClipHarbor')
+# Chrome needs real stdio; the main app stays windowless. A separate, minimal
+# graph keeps yt-dlp, Tk and the editor out of the bridge's embedded archive.
+b = Analysis([str(root / 'browser_bridge.py')], pathex=[str(root)],
+             binaries=[], datas=[], hiddenimports=[],
+             excludes=['yt_dlp', 'flask', 'waitress', 'tkinter', 'numpy', 'pytest'], noarchive=False)
+bridge_pyz = PYZ(b.pure)
+bridge = EXE(bridge_pyz, b.scripts, [], exclude_binaries=True, name='ClipHarborBridge',
+             debug=False, strip=False, upx=False, console=True,
+             icon=str(root / 'browser-extension' / 'icon.png'))
+coll = COLLECT(exe, bridge, a.binaries, b.binaries, a.datas, b.datas,
+               strip=False, upx=False, name='ClipHarbor')

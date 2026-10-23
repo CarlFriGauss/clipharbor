@@ -106,6 +106,11 @@ class JobManager:
         with self._lock:
             return self._jobs.get(job_id)
 
+    def recent(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [job.public() for job in sorted(self._jobs.values(), key=lambda job: job.created_at, reverse=True)[:100]
+                    if job.kind != "connection"]
+
     def begin_shutdown(self) -> bool:
         with self._lock:
             if any(job.status in {"queued", "running"} for job in self._jobs.values()):

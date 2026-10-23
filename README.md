@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.6.1/ClipHarbor-Setup-0.6.1-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.7.0/ClipHarbor-Setup-0.7.0-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -15,6 +15,7 @@ It is designed around a workflow rather than a collection of scripts:
 5. Send the completed file straight into a fresh timeline project, with the media already placed on the first compatible layer.
 6. Build a non-destructive edit from video and audio clips, split clips into independently editable sections, and render the result with FFmpeg.
 7. Choose **Google Drive** in Download to save space locally, or use **Export** for Drive, YouTube, X, or Facebook. Facebook personal profiles finish posting in the browser; Pages support direct upload. Each destination shows its logo.
+8. Download from the page you are watching with the optional **Chrome/Edge browser extension**. The app starts quietly when needed; the extension offers format, computer/Drive destination, and progress without copying URLs.
 
 ## Requirements for manual source setup
 
@@ -31,7 +32,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.6.1/ClipHarbor-Setup-0.6.1-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.7.0/ClipHarbor-Setup-0.7.0-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -40,9 +41,12 @@ then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
 
-Version **0.6.1** adds Facebook personal-profile export: prepare your video,
-open Facebook, and copy the video location and post text to finish posting there.
-It also improves the editor with resizable Media, preview, Properties, and
+Version **0.7.0** adds the optional [browser extension](#browser-extension) for
+Chrome and Edge, with background downloads to this computer or Google Drive.
+The installer registers its small local bridge and includes the extension files.
+Loading the extension in your browser is a one-time manual step.
+Facebook personal-profile export prepares your video and opens Facebook to finish
+posting there. The editor includes resizable Media, preview, Properties, and
 timeline areas. The preview always fits the entire frame. A folder button toggles
 Media; Properties follows source files, timeline sections, and selected layers.
 Direct Google Drive downloads and cloud/social export remain included.
@@ -53,7 +57,7 @@ YouTube requires its own Google upload permission. X and Facebook Page publishin
 require the platform tokens described below. Personal-profile sharing needs no
 Facebook token in ClipHarbor. Each installer user signs in to their own account.
 Advanced source builds need the publisher registration described below.
-[Release notes](packaging/RELEASE-0.6.1.md)
+[Release notes](packaging/RELEASE-0.7.0.md)
 explain the supported destinations and validation. The earlier Tcl/Tk startup
 fix remains included; install over the old version without deleting projects.
 
@@ -62,6 +66,53 @@ uninstall leave those files intact. To update, quit and run a newer installer.
 This build is unsigned; Windows may show a publisher warning. Do not disable
 Windows security. Download only from this repository's releases. See
 [packaging notes](packaging/README.md) for build, testing and release requirements.
+
+### Browser extension
+
+1. Install **ClipHarbor 0.7.0 or newer** and open it once to finish media-tool setup.
+2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
+3. Enable **Developer mode**, click **Load unpacked**, and select
+   `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension` (inside your installation).
+   Alternatively, download [ClipHarbor-Extension-0.7.0.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.7.0/ClipHarbor-Extension-0.7.0.zip),
+   extract it to a permanent folder, and select that folder.
+4. Pin ClipHarbor to your browser toolbar. Open a video page, click ClipHarbor,
+   choose the link, format and **This computer** or **Google Drive**, and download.
+
+This GitHub release is **not listed in the Chrome Web Store or Edge Add-ons**.
+The browser installation is explicit; ClipHarbor never force-installs extensions
+or changes browser security policies. The stable ID for this build is
+`nopjlekidanihaoahnpcnkacdpgljejl`. Chrome/Edge 120+ on desktop are supported.
+
+You can also right-click a video, link or page and choose **Download with
+ClipHarbor**. This uses your last successful extension request's format and
+destination. For a feed containing several videos, choose the intended video in
+the popup or paste its individual permalink. Some sites expose no usable link;
+the downloader's existing source/authentication/DRM limits still apply.
+
+The desktop engine starts quietly if needed. Downloads continue after you close
+the popup. The badge shows running downloads; reopen the popup for progress,
+**Open folder**, or **View in Google Drive**. **Open app** opens Activity, where
+extension downloads can also be edited or exported. Recent jobs are held by the
+running engine and may be lost after a crash/restart; failed status checks never
+silently submit a second download. Use **Quit app** when finished.
+
+Drive uses the same operating-system-protected account connection and dedicated
+folder as Download and Export. **Connect in ClipHarbor** opens the existing
+Google sign-in; reopen the popup after connecting. The extension never receives
+Google tokens or the local desktop session secret. It requests temporary access
+to the page you invoke, not access to every site, browser cookies, passwords or
+general browsing history. There is no analytics or cloud processing service.
+Browser storage keeps recent download IDs, progress and output locations.
+
+**Source users:** install the usual source prerequisites, then run
+`python browser-extension/register_host.py` using that Python environment and
+load the repository's `browser-extension` folder. The bridge starts the source
+desktop engine on demand. Keep the checkout and environment in place.
+`python browser-extension/register_host.py --unregister` removes matching source
+registrations without deleting media or connections. Source and installer
+registrations share a name; the most recent setup wins. Re-run the installer to
+switch back to its bridge. Unix registration paths are provided; live Windows
+validation is the release target. See the [extension guide](browser-extension/README.md).
 
 ### Windows / PowerShell
 
@@ -142,6 +193,7 @@ Run the regression tests from an environment with FFmpeg on PATH:
 python -m pip install -r requirements.txt pytest
 python -m pytest -q
 node tests/timeline_regressions.cjs
+node tests/extension_regressions.mjs
 ```
 
 ## Zero-prerequisite terminal install

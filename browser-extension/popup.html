@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClipHarbor</title><link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header><img src="icon.png" width="32" height="32" alt=""><div><h1>ClipHarbor</h1><span>Download this video</span></div><button id="openApp" class="quiet" title="Open ClipHarbor">Open app ↗</button></header>
+  <p id="connection" role="status">Connecting to ClipHarbor…</p>
+  <form id="downloadForm">
+    <div id="mediaChoices" hidden><label for="candidate">Video on this page</label><select id="candidate"></select></div>
+    <label for="url">Video or page link</label><input id="url" type="url" placeholder="https://…" required maxlength="16384">
+    <div class="row"><div><label for="format">Format</label><select id="format"><option value="mp4">MP4 · video</option><option value="original">Original source quality</option><option value="mkv">MKV</option><option value="webm">WebM</option><option value="mov">MOV</option><option value="mp3">MP3 · audio</option><option value="m4a">M4A · audio</option><option value="wav">WAV · audio</option></select></div><div><label for="destination">Save to</label><select id="destination"><option value="local">This computer</option><option value="drive">Google Drive</option></select></div></div>
+    <div id="folderRow"><span id="folder"></span><button type="button" id="chooseFolder" class="quiet">Change folder…</button></div>
+    <div id="driveRow" hidden><img src="drive.svg" alt="Google Drive" width="18" height="18"><span id="driveStatus"></span><button id="connectDrive" type="button" class="quiet" hidden>Connect in ClipHarbor ↗</button></div>
+    <label id="compatibility"><input id="xCompatible" type="checkbox"> Make MP4 compatible with X</label>
+    <button id="download" class="primary" disabled>Download</button>
+  </form>
+  <p id="message" role="status" aria-live="polite"></p>
+  <section id="activity" aria-label="Recent downloads" hidden><h2>Recent downloads</h2><div id="jobs"></div></section>
+  <footer>The download continues when you close this popup. <a href="setup.html" target="_blank" rel="noreferrer">Setup & privacy</a></footer>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

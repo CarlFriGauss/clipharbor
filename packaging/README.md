@@ -24,9 +24,20 @@ hashes when replacing vendor tools. Do not use an FFmpeg build with `--enable-no
 Read THIRD-PARTY-NOTICES.md. The spec deliberately excludes FFmpeg binaries;
 do not replace the explicit file list with the entire vendor directory.
 
-Output: `dist\installer\ClipHarbor-Setup-0.6.1-win-x64.exe`.
+Outputs: `dist\installer\ClipHarbor-Setup-0.7.0-win-x64.exe` and
+`dist\installer\ClipHarbor-Extension-0.7.0.zip`.
 The build script reads `mediaforge.runtime.VERSION` and passes it to Inno Setup
 so the application and installer versions agree.
+
+The bundle contains a windowless ClipHarbor.exe and a minimal console/stdio
+ClipHarborBridge.exe, sharing collected runtime DLLs. The bridge's separate
+dependency graph excludes yt-dlp, Flask and Tk; media work runs in the normal
+app. The extension is copied from an explicit flat file list (no caches or user
+data). Inno Setup registers `com.clipharbor.downloader` per user for Chrome/Edge,
+with only the stable extension origin allowed. The user loads the extension
+explicitly; no browser policy or forced extension installation is used.
+See [extension setup](../browser-extension/README.md) and
+[release notes](RELEASE-0.7.0.md). Store publication is a separate review step.
 
 The build probes a working Tcl/Tk instance and explicitly collects its loaded
 DLLs and library scripts as a matched set. Do not rely on DLL discovery through
@@ -42,7 +53,8 @@ Validate the self-contained bundle without developer tools on PATH:
 
 The smoke test uses temporary per-user state and a local HTTP media source; it
 tests launch/authentication, duplicate launch, projects, waveform, actual export,
-downloader, tools and clean shutdown. It does not modify real projects.
+downloader, tools, native bridge download/progress, shared Activity, cold engine
+startup and clean shutdown. It does not modify real projects.
 
 ## Updates and user state
 

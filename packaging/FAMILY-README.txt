@@ -11,6 +11,17 @@ No Python, Conda, Node.js, terminal commands or separate FFmpeg installation nee
 Internet is needed for first-time setup and downloading online media.
 After setup, editing local files works offline.
 
+Optional browser extension (Chrome or Edge): open "Set up browser extension"
+from the ClipHarbor Start menu folder. On chrome://extensions or edge://extensions,
+enable Developer mode, choose Load unpacked, and select the browser-extension
+folder inside your ClipHarbor installation. This GitHub version is not in either
+browser's extension store. The installer registers the companion bridge but does
+not force-install extensions or change browser security settings.
+Pin ClipHarbor, then click it on a video page to choose a format and download to
+this computer or the same connected Google Drive. Right-click "Download with
+ClipHarbor" uses your last extension settings. Downloads continue after closing
+the popup; Open app shows them in Activity. Google tokens stay in the app.
+
 The editor has Media at the left, the full video preview in the center, Properties
 at the right, and the timeline across the bottom. Drag the three dividers to
 resize. The folder icon shows/hides Media (yellow means open). Properties follows
