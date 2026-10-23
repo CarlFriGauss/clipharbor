@@ -22,7 +22,6 @@ class InstanceLock:
         self.file = None
 
     def acquire(self) -> bool:
-        import msvcrt
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.file = self.path.open("a+b")
         if self.path.stat().st_size == 0:
@@ -30,7 +29,12 @@ class InstanceLock:
             self.file.flush()
         self.file.seek(0)
         try:
-            msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             return True
         except OSError:
             self.file.close()
@@ -85,8 +89,9 @@ def main() -> int:
         return 1
     server = None
     try:
-        from .tool_setup import ensure_media_tools
-        ensure_media_tools(graphical=args.setup_ui or not args.no_browser)
+        if getattr(sys, "frozen", False):
+            from .tool_setup import ensure_media_tools
+            ensure_media_tools(graphical=args.setup_ui or not args.no_browser)
         configure_tools()
         from .ffmpeg import require_tools
         require_tools()

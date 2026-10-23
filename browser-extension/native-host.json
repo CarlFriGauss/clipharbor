@@ -1,0 +1,7 @@
+{
+  "name": "com.clipharbor.downloader",
+  "description": "ClipHarbor browser download companion",
+  "path": "ClipHarborBridge.exe",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://nopjlekidanihaoahnpcnkacdpgljejl/"]
+}

@@ -132,7 +132,8 @@ def create_app() -> Flask:
         expected = app.config.get("DESKTOP_TOKEN", "")
         if not expected or not secrets.compare_digest(token, expected):
             return jsonify({"error": "This launch link has expired. Use the desktop shortcut."}), 403
-        response = redirect("/")
+        view = request.args.get("view")
+        response = redirect("/#" + view if view in {"activity", "download", "drive"} else "/")
         response.set_cookie("clipharbor-session", expected, httponly=True, samesite="Strict")
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -373,6 +374,10 @@ def create_app() -> Flask:
             return jsonify({"error": "Media is no longer available"}), 404
         prepared = editing_source(path)
         return jsonify({"url": f"/api/media/{registry.add(prepared)}", "indexed": prepared != path})
+
+    @app.get("/api/jobs")
+    def recent_jobs():
+        return jsonify({"jobs": jobs.recent()}), {"Cache-Control": "no-store"}
 
     @app.get("/api/jobs/<job_id>")
     def job_status(job_id: str):

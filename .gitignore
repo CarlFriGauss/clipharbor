@@ -26,3 +26,10 @@ packaging/vendor/
 # Per-user cloud credentials; never ship or commit.
 .connections/
 google-oauth-client.json
+
+# Source-mode native bridge state and local desktop session (never publish).
+browser-bridge/
+browser-downloads.json
+.browser-downloads-*.tmp
+instance.json
+instance.lock
