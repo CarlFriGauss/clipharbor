@@ -461,10 +461,14 @@ scope through Google's consent screen so it can access the selected folder.
 Changing to another existing folder may require reconnecting. The selected folder
 is remembered. Drive upload success requires reading back the file size and parent.
 
-YouTube requires a channel and defaults to **Private**. Visibility can be changed
-in Export. Google's API quotas and project verification rules apply; uploads
-from unaudited projects may be restricted to private visibility. YouTube may
-continue processing after its upload API accepts the file.
+YouTube requires a channel and defaults to **Private**. Choose Private, Unlisted,
+or Public in Export; ClipHarbor uploads the video, title and description directly
+through YouTube's API. Google's API quotas, authorization requirements and channel
+restrictions apply. Google's current [upload documentation](https://developers.google.com/youtube/data/reference/rest/v3/videos/insert)
+states that unverified API projects are not automatically restricted to private
+uploads. YouTube may continue processing after accepting the file. Sign-in and
+upload authorization were verified; successful live upload testing remains
+deferred until the test channel's temporary restriction ends.
 
 X requires a **user** access token with media.write, tweet.write, tweet.read, and
 users.read permissions plus developer API access for uploads and posts.
