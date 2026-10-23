@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.5.0') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.6.0') }}">
 </head>
 <body>
   <header class="topbar">
@@ -76,10 +76,30 @@
               <select id="audioTrackSelect"><option value="">Automatic / source default</option></select>
               <small class="field-help">Choose an original or dubbed language found in this video.</small>
             </label>
-            <label class="field"><span>Output folder</span>
+            <label class="field"><span id="downloadOutputLabel">Output folder</span>
               <div class="path-row"><input id="outputPath" type="text"><button id="browseOutput" class="icon-button" title="Choose folder">…</button></div>
             </label>
           </div>
+          <div class="download-destinations">
+            <span class="field-label">Save to</span>
+            <div class="destination-picker download-destination-picker" role="group" aria-label="Download destination">
+              <button type="button" class="destination selected" data-download-destination="local" aria-pressed="true"><img src="/static/logos/local.svg" alt=""><span>This computer<small>Save to your output folder</small></span></button>
+              <button type="button" class="destination" data-download-destination="drive" aria-pressed="false"><img src="/static/logos/drive.svg" alt=""><span>Google Drive<small>Save space on your computer</small></span></button>
+            </div>
+            <p id="downloadStorageNote" class="field-help">Save the finished file to your output folder.</p>
+          </div>
+          <section id="downloadDrivePanel" class="connection-panel download-drive-panel hidden" aria-label="Google Drive download settings">
+            <div class="connection-heading"><strong id="downloadDriveStatus" role="status">Connect Google Drive</strong><button id="downloadDisconnectDrive" class="button ghost hidden" type="button">Disconnect</button></div>
+            <div id="downloadGoogleSetup">
+              <p id="downloadGoogleHelp" class="field-help">Sign in with Google in your browser once. This connection works in both Download and Export and is remembered securely on this computer. ClipHarbor never receives your Google password.</p>
+              <button id="downloadConnectDrive" class="button secondary" type="button">Sign in with Google</button>
+            </div>
+            <p id="downloadDriveFolderNote" class="field-help">Folder: ClipHarbor Exports · created on the first upload.</p>
+            <details class="drive-setup">
+              <summary>Use a different Drive folder</summary>
+              <label class="field"><span>Drive folder ID (optional)</span><input id="downloadDriveFolderId" placeholder="Leave empty to use ClipHarbor Exports"><small>Paste the ID from your Drive folder URL. An existing folder may require reconnecting with broader Drive access.</small></label>
+            </details>
+          </section>
           <label id="xOption" class="option-toggle" for="xCompatible">
             <input id="xCompatible" type="checkbox">
             <span class="toggle-ui"></span>
@@ -193,14 +213,45 @@
     <p class="eyebrow">Ready</p><h2 id="completeTitle">Download complete</h2>
     <p id="completeMessage"></p>
     <code id="completePath" class="complete-path"></code>
-    <div class="dialog-actions"><button data-close-dialog class="button secondary">Done — use this file</button><button id="revealResult" class="button secondary">Open folder</button><button id="editResult" class="button primary">Edit as new project</button></div>
+    <div class="dialog-actions"><button id="completeDone" data-close-dialog class="button secondary">Done — use this file</button><button id="revealResult" class="button secondary">Open folder</button><a id="openDelivery" class="button secondary hidden" target="_blank" rel="noopener noreferrer">Open uploaded video</a><button id="shareResult" class="button secondary">Export / share</button><button id="editResult" class="button primary">Edit as new project</button></div>
   </dialog>
 
   <dialog id="exportDialog" class="export-dialog">
     <button class="dialog-close" data-close-dialog>×</button>
-    <p class="eyebrow">FFmpeg render</p><h2>Export project</h2>
+    <p class="eyebrow">Save &amp; share</p><h2>Export</h2>
+    <div class="destination-picker" role="group" aria-label="Export destination">
+      <button type="button" class="destination selected" data-destination="local" aria-pressed="true"><img src="/static/logos/local.svg" alt="">This computer</button>
+      <button type="button" class="destination" data-destination="drive" aria-pressed="false"><img src="/static/logos/drive.svg" alt="">Google Drive</button>
+      <button type="button" class="destination" data-destination="youtube" aria-pressed="false"><img src="/static/logos/youtube.svg" alt="">YouTube</button>
+      <button type="button" class="destination" data-destination="x" aria-pressed="false"><img src="/static/logos/x.svg" alt="">X</button>
+      <button type="button" class="destination" data-destination="facebook" aria-pressed="false"><img src="/static/logos/facebook.svg" alt="">Facebook Page</button>
+    </div>
+    <p id="exportStorageNote" class="dialog-help"></p>
+    <section id="connectionPanel" class="connection-panel hidden" aria-label="Destination connection">
+      <div class="connection-heading"><strong id="connectionStatus"></strong><button id="disconnectDestination" class="button ghost hidden" type="button">Disconnect</button></div>
+      <div id="googleConnection" class="hidden">
+        <p id="googleConnectionHelp" class="dialog-help">Sign in with Google in your browser once. ClipHarbor remembers the connection securely on this computer and never receives your Google password. Connecting Drive here also connects the Downloader.</p>
+      </div>
+      <div id="tokenConnection" class="hidden">
+        <p id="tokenHelp" class="dialog-help"></p><a id="tokenDocs" target="_blank" rel="noopener noreferrer">Platform setup instructions</a>
+        <label id="facebookPageField" class="field hidden"><span>Facebook Page ID</span><input id="facebookPageId" inputmode="numeric" autocomplete="off"></label>
+        <label class="field"><span>User / Page access token</span><input id="destinationToken" type="password" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <button id="connectDestination" class="button secondary" type="button">Connect destination</button>
+    </section>
+    <div id="driveFolderField" class="hidden">
+      <p class="dialog-help">Dedicated folder: <strong id="driveFolderName">ClipHarbor Exports</strong>. ClipHarbor creates it on the first upload and remembers it.</p>
+      <label class="field"><span>Drive folder ID (optional)</span><input id="driveFolderId" placeholder="Leave empty to use ClipHarbor Exports"><small>The chosen folder is remembered. Connecting with an existing folder ID requests broader Drive access in Google sign-in; leaving this empty limits access to files created by ClipHarbor.</small></label>
+    </div>
+    <div id="socialDetails" class="form-grid hidden">
+      <label id="deliveryTitleField" class="field full"><span>Video title (optional)</span><input id="deliveryTitle" maxlength="100" placeholder="Use the export file name"></label>
+      <label class="field full"><span>Description / post text</span><textarea id="exportDescription" rows="2" maxlength="5000"></textarea></label>
+      <label id="youtubeVisibilityField" class="field hidden"><span>YouTube visibility</span><select id="youtubeVisibility"><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select></label>
+      <label id="publishField" class="publish-field full hidden"><input id="exportPublish" type="checkbox"><span id="publishLabel"></span></label>
+    </div>
+    <p id="exportSourceNote" class="dialog-help hidden"></p>
     <p id="exportDuration" class="dialog-help"></p>
-    <div class="form-grid export-grid">
+    <div id="renderFields" class="form-grid export-grid">
       <label class="field"><span>File name</span><input id="exportName" value="ClipHarbor export"></label>
       <label class="field"><span>Format</span><select id="exportFormat"><option value="mp4">MP4</option><option value="x_mp4">X compatible MP4 · highest quality</option><option value="mkv">MKV</option><option value="webm">WebM</option><option value="mov">MOV</option><option value="mp3">MP3</option><option value="m4a">M4A</option><option value="wav">WAV</option></select></label>
       <label class="field full"><span>Output folder</span><div class="path-row"><input id="exportPath"><button id="browseExport" class="icon-button">…</button></div></label>
@@ -227,6 +278,8 @@
     <div id="projectList" class="project-list"></div>
   </dialog>
 
-  <script src="{{ url_for('static', filename='app.js', v='0.5.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='destinations.js', v='0.6.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='download-destinations.js', v='0.6.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js', v='0.6.0') }}" defer></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.5.2/ClipHarbor-Setup-0.5.2-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.6.0/ClipHarbor-Setup-0.6.0-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -14,6 +14,7 @@ It is designed around a workflow rather than a collection of scripts:
 4. For MP4 video, optionally request **X compatibility**. ClipHarbor probes the completed file and skips conversion when it already meets the compatibility profile.
 5. Send the completed file straight into a fresh timeline project, with the media already placed on the first compatible layer.
 6. Build a non-destructive edit from video and audio clips, split clips into independently editable sections, and render the result with FFmpeg.
+7. Choose **Google Drive** in Download to save space locally, or use **Export** to send a finished file to Drive, YouTube, X, or a Facebook Page. Each destination shows its logo and connection status.
 
 ## Requirements for manual source setup
 
@@ -30,7 +31,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.5.2/ClipHarbor-Setup-0.5.2-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.6.0/ClipHarbor-Setup-0.6.0-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -39,9 +40,14 @@ then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
 
-Version 0.5.2 fixes the Tcl/Tk startup error in 0.5.1. If you saw an `init.tcl`
-error, close its dialog and install the new version over the old one. No project
-or media deletion is needed.
+Version **0.6.0** adds direct Google Drive downloads and cloud/social export.
+For Drive, click **Sign in with Google** once; Download and Export share the same
+protected connection and dedicated folder. No Google Drive desktop installation,
+credentials file, or developer setup is needed in the Windows installer.
+YouTube requires its own Google upload permission. X and Facebook Page publishing
+require the platform tokens described below. [Release notes](packaging/RELEASE-0.6.0.md)
+explain the supported destinations and validation. The earlier Tcl/Tk startup
+fix remains included; install over the old version without deleting projects.
 
 Installed projects, cache and logs use `%LOCALAPPDATA%\ClipHarbor`; updates and
 uninstall leave those files intact. To update, quit and run a newer installer.
@@ -293,3 +299,145 @@ mediaforge/web.py        local API and media streaming
 static/                  application interface
 tests/                   command-generation and compatibility tests
 ```
+
+## Download directly to Google Drive
+
+In the Downloader's **Output** card, use the icons under **Save to** to choose
+**This computer** or **Google Drive**. The computer option uses the output folder
+as before. Drive uses the same Google connection and remembered destination folder
+as Export; connecting or disconnecting in either place applies to both.
+
+Cloud downloads use isolated temporary disk space for yt-dlp and FFmpeg, then
+upload the finished file in chunks. After Drive confirms the file size and folder,
+ClipHarbor removes the temporary source, output, and partial files. No permanent
+local copy is kept. All supported download formats, including original containers
+and audio-only files, can go to Drive. Activity and the completion dialog show an
+**Open in Google Drive** link. Download to **This computer** when you need local
+media for editing.
+
+If an upload fails, Activity offers **Retry upload** without downloading or
+converting again, and **Discard temporary download** to free disk space. Pending
+uploads are recovered after a page reload or app restart. An interrupted source
+download can also be discarded. If cleanup encounters a locked file after a
+successful upload, use **Remove temporary files**; the completed upload is recorded
+so it is not uploaded again.
+
+Run the cloud download regression checks with:
+
+    python -m pytest -q tests/test_cloud_downloads.py
+
+Provider responses in these tests are simulated; live Google sign-in and uploads
+require the app's Google OAuth registration and an authorized account.
+
+## Export to Google Drive and social platforms
+
+The Export dialog includes local saving, Google Drive, YouTube, X, and Facebook
+Pages, with local SVG logos. Finished downloads also have **Export / share**,
+so an existing MP4 can upload directly without another render. A local copy is
+retained. Activity shows upload progress, remote links, errors, and **Retry upload**
+for a failed delivery. Failed uploads never require rendering the timeline again.
+
+These optional integrations use Python's standard library, bounded 4 MiB upload
+chunks or streaming, and the existing background jobs. They add no runtime
+dependencies, GPU requirement, third-party JavaScript, or always-running service.
+A video render still uses the existing FFmpeg pipeline.
+
+### One-time connections
+
+Users click **Sign in with Google** and authorize ClipHarbor in their browser.
+They never select a credentials file or enter a Google password into ClipHarbor.
+The same Drive connection is shared by Download and Export, survives app restarts,
+and renews short-lived access tokens automatically. Sign-in is requested again
+when Google authorization expires or is revoked. A network failure preserves the
+saved authorization for a later retry.
+
+The publisher must register one Google OAuth **Desktop app** client for ClipHarbor
+and enable Drive API and/or YouTube Data API v3. Configure consent and production
+verification before distributing the app. Supply the registration through
+`CLIPHARBOR_GOOGLE_CLIENT_FILE`, or put an ignored `google-oauth-client.json` at
+the resource root before building. The installer spec embeds only that publisher
+registration under a normalized file name. Source deployments may alternatively
+set `CLIPHARBOR_GOOGLE_CLIENT_ID` and `CLIPHARBOR_GOOGLE_CLIENT_SECRET`. These
+identify the app; they are separate from every user's authorization. Desktop
+client registrations cannot be treated as confidential secrets in a distributed
+application; PKCE protects the authorization exchange. Never bundle user tokens.
+A build without registration reports that Google sign-in is unavailable; it does
+not make ordinary users create Cloud projects.
+
+Publisher app information and the privacy policy are available at
+[the ClipHarbor website](https://carlfrigauss.github.io/clipharbor/) and
+[Privacy policy](https://carlfrigauss.github.io/clipharbor/privacy.html).
+Their source lives in `docs/`; the documentation site uses a separate `gh-pages`
+branch and adds no application dependencies. Keep the Cloud consent configuration
+in production for released builds: Google's testing mode issues refresh tokens
+that expire after seven days. An authorization created during testing must be
+renewed after moving to production; existing account revocation and expiry rules
+still apply.
+
+Drive defaults to the limited **drive.file** scope and creates and remembers a
+**ClipHarbor Exports** folder on its first upload. To use an existing folder,
+enter its ID before connecting. That connection requests the broader **drive**
+scope through Google's consent screen so it can access the selected folder.
+Changing to another existing folder may require reconnecting. The selected folder
+is remembered. Drive upload success requires reading back the file size and parent.
+
+YouTube requires a channel and defaults to **Private**. Visibility can be changed
+in Export. Google's API quotas and project verification rules apply; uploads
+from unaudited projects may be restricted to private visibility. YouTube may
+continue processing after its upload API accepts the file.
+
+X requires a **user** access token with media.write, tweet.write, tweet.read, and
+users.read permissions plus developer API access for uploads and posts.
+App-only bearer tokens are insufficient. Export requires an explicit **Publish
+this video as an X post** selection, waits for media processing, and then creates
+the post. Token expiry requires reconnecting. Platform access/usage charges and
+account-specific media limits apply.
+
+Facebook supports **Pages**, not personal profile publishing. Connect a Page ID
+and a Page access token granted by a person allowed to create content on that
+Page, with pages_manage_posts and pages_read_engagement permissions
+(pages_show_list is also needed when obtaining the Page token). Exports default
+to unpublished; explicitly select publishing to make the Page video public.
+Meta's app review, token expiry, account permissions, and processing rules apply.
+
+Social exports require MP4 video. Choosing X selects the existing X-compatible
+render preset. Sharing an already-downloaded file uploads it unchanged; choose
+an appropriate MP4 or render an X-compatible version first.
+
+User tokens are stored separately from projects and browser storage. Windows
+uses user-bound DPAPI encryption, macOS uses Keychain, and Linux uses Secret
+Service (`secret-tool` from libsecret). There is no plaintext fallback when the
+OS credential store is unavailable. A legacy unencrypted source-mode file on
+macOS/Linux is removed only after migration to the OS vault is verified.
+
+The connection API returns only status and folder preferences, never passwords,
+access tokens, refresh tokens, or client secrets. Bearer authorization is omitted
+from redirected requests. Concurrent Download and Export jobs serialize renewal
+so they reuse the same refreshed authorization.
+
+**Disconnect** removes the shared local connection and attempts to revoke the
+Google grant. If Google cannot be reached, local tokens are still removed and
+the UI explains how to revoke the grant in the Google account. Google revocation
+invalidates all scopes for the same Cloud project, so related Drive and YouTube
+connections are cleared together. Disconnecting while sign-in is open prevents
+that unfinished sign-in from silently recreating the saved connection.
+
+### Cloud export checks
+
+Run the existing regression suite and the adapter/security tests:
+
+    python -m pytest -q
+    node tests/timeline_regressions.cjs
+
+The publishing tests cover chunk recovery, processing failures, saved-folder
+reuse, credential protection, preflight validation, origin checks, and preserving
+a failed export for retry. They mock provider responses and do not establish that
+a real account has permission to upload. Live Drive, YouTube, X, and Facebook
+tests require their own app credentials and account authorization.
+
+Release validation also exercised a real Drive sign-in, export upload, direct
+Drive download, shared connection after restart, and automatic Google token
+renewal. The uploaded file's size and folder were verified, and the direct
+download removed its temporary local files. YouTube, X, and Facebook publishing
+have adapter tests; real-account publishing for those platforms is not yet
+verified in this release.

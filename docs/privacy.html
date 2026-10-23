@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="How ClipHarbor handles local media and optional Google Drive and social account connections.">
+<title>Privacy policy · ClipHarbor</title>
+<link rel="stylesheet" href="site.css">
+<main>
+  <a class="brand" href="./">ClipHarbor</a>
+  <h1>Privacy policy</h1>
+  <p class="muted">Last updated: 22 October 2026</p>
+  <p>This policy describes the ClipHarbor desktop application, including optional cloud features in builds that include them. ClipHarbor runs on your computer. Connecting a cloud account is optional.</p>
+  <h2>Media and local information</h2>
+  <p>ClipHarbor processes downloaded and imported media locally. It stores the media, projects, settings, and job information needed for your work on your computer. Source sites receive requests when you inspect or download their media. An optional source cookie file is used to authenticate requests to the source service.</p>
+  <p>Local exports keep a local copy. A direct-to-Drive download uses temporary local storage, uploads the completed file, verifies its size and destination folder, and then removes the temporary media. A failed upload retains temporary files and recovery information so you can retry or discard them.</p>
+  <h2>Google account access</h2>
+  <p>Google sign-in happens in your browser on Google's website. ClipHarbor does not receive or store your Google password. Google provides authorization tokens that allow ClipHarbor to perform the actions you authorize. A refresh token lets the app renew short-lived access without asking you to sign in for every upload.</p>
+  <p>The default Google Drive permission allows access only to the specific files used with ClipHarbor. The app creates and remembers a dedicated folder for uploads. If you explicitly connect an existing folder by its ID, the current implementation requests broader Drive access through Google's consent screen. You can review or decline the requested permissions there.</p>
+  <p>Drive authorization is shared between Download and Export on the same computer and operating-system account. YouTube authorization is requested separately for video uploads. YouTube exports default to private; you choose the requested visibility in Export. The app sends the selected video, title, description, and destination settings to the service you choose.</p>
+  <h2>Other social platforms</h2>
+  <p>If you connect X or a Facebook Page, ClipHarbor uses the supplied account token to upload your selected media and the post details you enter. X publishing requires the publish option. Facebook Page uploads default to unpublished unless you choose publishing. Platform permissions and visibility rules also apply.</p>
+  <h2>Protection, sharing, and use</h2>
+  <p>Account tokens are stored using Windows user-bound DPAPI encryption, macOS Keychain, or Linux Secret Service. They are kept separate from project files and browser storage. The app does not fall back to saving unencrypted account tokens when operating-system protection is unavailable.</p>
+  <p>ClipHarbor uses Google user data only to provide the account connection and upload features you request. It does not sell Google user data, use it for advertising, or use it to train generalized AI models. The desktop app sends uploads and authorization requests directly to the selected service; it does not send your media or account tokens to a ClipHarbor-operated cloud server.</p>
+  <p>ClipHarbor's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements.</p>
+  <h2>Retention, disconnecting, and deletion</h2>
+  <p>ClipHarbor retains a saved connection until you disconnect it or remove its local account data. Google may expire or revoke an authorization, in which case signing in again is required. Disconnect removes the saved local connection and attempts to revoke the Google grant. Related Drive and YouTube connections can be cleared together because Google revokes access at the app-project level. If offline, remove remaining access in <a href="https://myaccount.google.com/connections">your Google Account connections</a>.</p>
+  <p>Disconnecting does not delete media already uploaded to a provider. Delete those files or videos in Google Drive, YouTube, X, or Facebook. Manage local media, project files, and failed-download recovery files on your computer. For questions about data handling, contact the support address below; do not send passwords or authorization tokens.</p>
+  <h2>Third-party services and this website</h2>
+  <p>Third-party services process requests under their own policies, including <a href="https://policies.google.com/privacy">Google's Privacy Policy</a> and the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>. This documentation site is hosted by GitHub Pages and has no analytics scripts. GitHub processes website requests under its <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">privacy statement</a>.</p>
+  <h2>Contact</h2>
+  <p>ClipHarbor support: <a href="mailto:irachailovich@gmail.com">irachailovich@gmail.com</a>. Changes to this policy will be published on this page with an updated date.</p>
+  <footer><a href="./">ClipHarbor home</a><a href="https://github.com/CarlFriGauss/clipharbor">Source and documentation</a></footer>
+</main>
+</html>

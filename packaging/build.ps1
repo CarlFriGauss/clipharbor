@@ -12,11 +12,13 @@ try {
     foreach ($name in @('node.exe')) {
         if (-not (Test-Path -LiteralPath "vendor\$name")) { throw "Missing bundled tool vendor\$name" }
     }
+    $AppVersion = & $Python -c "import runpy; print(runpy.run_path('../mediaforge/runtime.py')['VERSION'])"
+    if ($LASTEXITCODE -ne 0 -or $AppVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Application version is invalid.' }
     & $Python -m PyInstaller --noconfirm --distpath ..\dist --workpath ..\build ClipHarbor.spec
     if ($LASTEXITCODE -ne 0) { throw 'Application bundle failed.' }
     & $Python ..\tests\packaged_smoke.py ..\dist\ClipHarbor\ClipHarbor.exe --graphical-setup
     if ($LASTEXITCODE -ne 0) { throw 'Graphical first-run smoke test failed. Installer will not be built.' }
-    & $Iscc /Q ClipHarbor.iss
+    & $Iscc /Q "/DAppVersion=$AppVersion" ClipHarbor.iss
     if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
-    Get-FileHash ..\dist\installer\ClipHarbor-Setup-0.5.2-win-x64.exe -Algorithm SHA256
+    Get-FileHash "..\dist\installer\ClipHarbor-Setup-$AppVersion-win-x64.exe" -Algorithm SHA256
 } finally { Pop-Location; $env:PYTHONPATH = $OriginalPythonPath }

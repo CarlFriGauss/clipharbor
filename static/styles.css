@@ -164,3 +164,56 @@ body:has(.editor-view.active) main { max-width: none; }
 .empty-track-toggle { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 10px; white-space: nowrap; }
 .empty-track-toggle input { width: 13px; height: 13px; accent-color: var(--accent); }
 @media (max-width: 1350px) { .timeline-toolbar { grid-template-columns: auto 1fr; }.edit-tools { grid-row: 2; grid-column: 1 / -1; justify-content: center; }.timeline-actions { justify-content: flex-end; } }
+
+/* Optional destinations are small local SVGs and native controls. */
+.export-dialog { max-height: 90vh; overflow-y: auto; width: min(720px, 94vw); }
+.destination-picker { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 18px 0 12px; }
+.destination { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 12px 5px; border: 1px solid var(--line); border-radius: 9px; background: #171e27; color: var(--text); cursor: pointer; font: inherit; font-size: 12px; }
+.destination img { width: 28px; height: 28px; object-fit: contain; }
+.destination.selected { border-color: var(--accent); background: #17343e; box-shadow: inset 0 0 0 1px var(--accent); }
+.destination:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.connection-panel { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.connection-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.connection-panel a { color: #85c9ff; }
+.connection-panel .field, #driveFolderField .field { margin: 10px 0; }
+.field small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+#socialDetails { margin: 12px 0; }
+#exportDescription { resize: vertical; min-height: 65px; background: #10151c; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }
+.publish-field { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.publish-field input { width: 16px; height: 16px; accent-color: var(--accent); }
+.job-actions { flex-wrap: wrap; align-items: center; }
+.job-error { color: #ffadad; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hidden { display: none !important; }
+@media (max-width: 520px) { .destination-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.download-destinations { margin-top: 20px; }
+.download-destination-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 9px 0; }
+.download-destination-picker .destination { flex-direction: row; justify-content: flex-start; text-align: left; padding: 14px 12px; gap: 12px; }
+.download-destination-picker .destination.selected { background: rgba(216,255,69,.06); }
+.download-destination-picker .destination span { min-width: 0; font-weight: 600; }
+.download-destination-picker .destination small { display: block; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.5; margin-top: 3px; }
+.download-destinations .field-help, .download-drive-panel .field-help { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 8px 0; }
+.download-drive-panel { margin-top: 14px; background: #111923; }
+.download-drive-panel .connection-heading strong { font-size: 12px; }
+.drive-setup { margin: 12px 0; font-size: 11px; }
+.drive-setup summary { cursor: pointer; color: var(--text); }
+.drive-setup input[type=file] { height: auto; padding: 9px; }
+.options-card input:disabled { opacity: .4; }
+@media (max-width: 620px) {
+  body:has(#downloadView.active), body:has(#jobsView.active) { min-width: 0; }
+  #downloadView, #jobsView { padding: 28px 14px; }
+  .download-grid { grid-template-columns: minmax(0, 1fr); }
+  .download-card, .options-card { padding: 18px; }
+  .download-card .hint { max-width: 160px; font-size: 9px; }
+  .url-row input, .path-row input { min-width: 0; }
+  .download-destination-picker .destination { padding: 12px 8px; gap: 8px; }
+  .download-destination-picker .destination small { font-size: 9px; }
+  .download-destination-picker .destination img { width: 24px; height: 24px; }
+  .hero .source-orbit { display: none; }
+  .hero h1 { font-size: 34px; }
+  .topbar { padding: 10px; gap: 8px; flex-wrap: wrap; height: auto; }
+  .nav-tabs { order: 3; flex: 1 0 100%; justify-content: center; }
+  .system-pill { margin-left: auto; padding: 8px; }
+  .system-pill { font-size: 10px; }
+  dialog { min-width: 0; width: calc(100vw - 24px); padding: 24px 16px; }
+}
