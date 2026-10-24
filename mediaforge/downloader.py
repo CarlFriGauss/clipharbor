@@ -2,14 +2,56 @@ from __future__ import annotations
 
 import re
 import shutil
-import time
+import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import parse_qs, urlsplit
 
 import yt_dlp
 
-from .ffmpeg import ALL_FORMATS, convert, ensure_x_compatible, probe, unique_output
+from .ffmpeg import ALL_FORMATS, AUDIO_FORMATS, convert, embed_subtitle, ensure_x_compatible, probe, unique_output
 from .jobs import JobContext
+
+
+_output_lock = threading.Lock()
+_SUBTITLE_EXTS = {"srt", "vtt", "ass", "ssa", "ttml", "dfxp", "tt"}
+
+
+def validate_subtitle_selection(language: str | None, source: str, output_format: str) -> None:
+    if not isinstance(source, str) or source not in {"manual", "automatic"}:
+        raise ValueError("Choose creator subtitles or automatic captions")
+    if language is None:
+        return
+    if (not isinstance(language, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", language)
+            or language in {"all", "live_chat"}):
+        raise ValueError("The selected subtitle language is invalid")
+    if output_format in AUDIO_FORMATS:
+        raise ValueError("Subtitles require a video output format")
+
+
+def subtitle_tracks_from_info(info: dict[str, Any]) -> list[dict[str, Any]]:
+    """Expose actual downloadable tracks, never invent a translation language."""
+    tracks = []
+    for source, key in (("manual", "subtitles"), ("automatic", "automatic_captions")):
+        for language, entries in (info.get(key) or {}).items():
+            try:
+                validate_subtitle_selection(language, source, "mp4")
+            except ValueError:
+                continue
+            usable = [entry for entry in entries if isinstance(entry, dict)
+                      and (entry.get("url") or entry.get("data"))
+                      and (not entry.get("ext") or entry["ext"] in _SUBTITLE_EXTS)]
+            if not usable:
+                continue
+            tracks.append({
+                "language": language,
+                "source": source,
+                "label": str(next((entry["name"] for entry in usable if entry.get("name")), language)),
+                "automatic": source == "automatic",
+                "translated": any(parse_qs(urlsplit(entry.get("url") or "").query).get("tlang") for entry in usable),
+            })
+    return sorted(tracks, key=lambda track: (track["label"].casefold(), track["source"] != "manual"))
 
 
 def _safe_title(value: str) -> str:
@@ -30,13 +72,13 @@ def audio_tracks_from_formats(formats: list[dict[str, Any]]) -> list[dict[str, A
             continue
         note = " ".join(str(item.get("format_note") or "").split())
         first_note = note.split(",", 1)[0].strip()
-        role = next((name for name in ("original", "dubbed", "descriptive") if name in note.lower()), "")
-        if not first_note or first_note.lower() in quality_words:
+        role = next((name for name in ("original", "dubbed", "descriptive", "commentary") if name in note.lower()), "")
+        if not first_note or first_note.lower() in quality_words or re.fullmatch(r"\d+p(?:\d+)?|\d+k|DASH audio", first_note, re.I):
             first_note = language
         if role and role not in first_note.lower():
             first_note = f"{first_note} ({role})"
         label = first_note
-        key = (language.lower(), re.sub(r"\s*\(default\)\s*", "", label, flags=re.I).lower())
+        key = (language.lower(), role)
         preference = float(item.get("language_preference") or -1)
         score = (
             1.0 if item.get("vcodec") in (None, "none") else 0.0,
@@ -52,6 +94,7 @@ def audio_tracks_from_formats(formats: list[dict[str, Any]]) -> list[dict[str, A
             "original": "original" in note.lower(),
             "dubbed": "dubbed" in note.lower(),
             "default": "default" in note.lower() or preference >= 0,
+            "hasVideo": item.get("vcodec") not in (None, "none"),
         }
         if key not in tracks or score > tracks[key][0]:
             tracks[key] = (score, track)
@@ -68,7 +111,9 @@ def download_format_selector(target_format: str, audio_format_id: str | None = N
         raise ValueError("The selected audio track identifier is invalid")
     if target_format in {"mp3", "m4a", "wav"}:
         return audio_format_id
-    return f"bestvideo+{audio_format_id}/bestvideo*+{audio_format_id}"
+    # A muxed fallback can otherwise silently keep the source's default audio.
+    # Muxed tracks are handled explicitly after refreshing the source metadata.
+    return f"bestvideo+{audio_format_id}"
 
 
 def inspect_url(url: str, cookie_file: str | None = None) -> dict[str, Any]:
@@ -79,6 +124,10 @@ def inspect_url(url: str, cookie_file: str | None = None) -> dict[str, Any]:
         "no_warnings": True,
         "noplaylist": True,
         "skip_download": True,
+        # YouTube omits part of its translation catalogue unless caption
+        # discovery is requested. download=False still fetches no media/subs.
+        "writeautomaticsub": True,
+        "socket_timeout": 30,
     }
     if shutil.which("node"):
         options["js_runtimes"] = {"node": {}}
@@ -105,6 +154,7 @@ def inspect_url(url: str, cookie_file: str | None = None) -> dict[str, Any]:
         "hasVideo": any(f.get("vcodec") not in (None, "none") for f in formats),
         "hasAudio": any(f.get("acodec") not in (None, "none") for f in formats),
         "audioTracks": audio_tracks_from_formats(formats),
+        "subtitleTracks": subtitle_tracks_from_info(info),
     }
 
 
@@ -117,6 +167,8 @@ def download(
     x_compatible: bool = False,
     audio_format_id: str | None = None,
     audio_track_label: str | None = None,
+    subtitle_language: str | None = None,
+    subtitle_source: str = "manual",
     cookie_file: str | None = None,
     register: Callable[[Path], str],
 ) -> dict[str, Any]:
@@ -127,10 +179,23 @@ def download(
         raise ValueError("X compatibility can only be requested for MP4 video")
     if not url.startswith(("http://", "https://")):
         raise ValueError("Enter a complete media URL")
+    validate_subtitle_selection(subtitle_language, subtitle_source, target_format)
+    download_format_selector(target_format, audio_format_id)
 
     destination = Path(output_directory).expanduser().resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    started = time.time()
+    # Keep subtitle sidecars, intermediate conversions and concurrent downloads
+    # separate. Only the verified final video is moved to the user's folder.
+    with tempfile.TemporaryDirectory(prefix=".clipharbor-", dir=destination) as temporary:
+        return _download(context, url=url, destination=destination, working=Path(temporary),
+                         target_format=target_format, x_compatible=x_compatible,
+                         audio_format_id=audio_format_id, audio_track_label=audio_track_label,
+                         subtitle_language=subtitle_language, subtitle_source=subtitle_source,
+                         cookie_file=cookie_file, register=register)
+
+
+def _download(context, *, url, destination, working, target_format, x_compatible,
+              audio_format_id, audio_track_label, subtitle_language, subtitle_source, cookie_file, register):
     context.update(1, "Reading source metadata")
     observed: list[Path] = []
 
@@ -156,8 +221,8 @@ def download(
             observed.append(Path(filename))
 
     options: dict[str, Any] = {
-        "format": download_format_selector(target_format, audio_format_id),
-        "outtmpl": str(destination / "%(title).160B [source].%(ext)s"),
+        "format": download_format_selector(target_format),
+        "outtmpl": str(working / "%(title).160B [source].%(ext)s"),
         "noplaylist": True,
         "merge_output_format": "mkv",
         "retries": 10,
@@ -167,7 +232,13 @@ def download(
         "progress_hooks": [progress_hook],
         "postprocessor_hooks": [post_hook],
         "windowsfilenames": True,
+        "writesubtitles": bool(subtitle_language and subtitle_source == "manual"),
+        "writeautomaticsub": bool(subtitle_language and subtitle_source == "automatic"),
     }
+    if subtitle_language:
+        options.update(subtitleslangs=[f"^{re.escape(subtitle_language)}$"],
+                       subtitlesformat="srt/vtt/ttml/dfxp/best",
+                       postprocessors=[{"key": "FFmpegSubtitlesConvertor", "format": "srt"}])
     if shutil.which("node"):
         options["js_runtimes"] = {"node": {}}
     if cookie_file:
@@ -176,34 +247,74 @@ def download(
             raise FileNotFoundError(f"Cookies file not found: {cookie_path}")
         options["cookiefile"] = str(cookie_path)
 
+    selected_subtitle = None
     with yt_dlp.YoutubeDL(options) as ydl:
-        info = ydl.extract_info(url, download=True)
+        if subtitle_language or audio_format_id:
+            info = ydl.extract_info(url, download=False)
+            if info.get("entries"):
+                info = next((entry for entry in info["entries"] if entry), info)
+            if subtitle_language:
+                selected_subtitle = next((track for track in subtitle_tracks_from_info(info)
+                                          if track["language"] == subtitle_language and track["source"] == subtitle_source), None)
+                if not selected_subtitle:
+                    raise ValueError("The selected subtitles are no longer available. Inspect the video again.")
+            if audio_format_id:
+                selected_format = download_format_selector(target_format, audio_format_id)
+                selected_audio = next((item for item in info.get("formats", [])
+                                       if item.get("format_id") == audio_format_id and item.get("acodec") not in (None, "none")), None)
+                if not selected_audio:
+                    raise ValueError("The selected audio track is no longer available. Inspect the video again.")
+                if selected_audio.get("vcodec") not in (None, "none"):
+                    # Facebook can expose a complete video per dubbed language.
+                    # Keep that version's audio instead of merging default audio.
+                    selected_format = audio_format_id
+                ydl.params["format"] = selected_format
+                ydl.format_selector = ydl.build_format_selector(selected_format)
+            try:
+                info = ydl.process_ie_result(info, download=True)
+            except yt_dlp.utils.DownloadError as error:
+                if subtitle_language and "subtitle" in str(error).lower() and "429" in str(error):
+                    raise RuntimeError("The source is temporarily rate-limiting subtitle downloads (HTTP 429). Wait and try again. No video without the requested subtitles was saved.") from None
+                raise
+        else:
+            info = ydl.extract_info(url, download=True)
 
-    candidates = [p.resolve() for p in observed if p.exists() and p.is_file()]
+    if info.get("entries"):
+        info = next((entry for entry in info["entries"] if entry), info)
+
+    subtitle_file = None
+    if subtitle_language:
+        subtitle_data = (info.get("requested_subtitles") or {}).get(subtitle_language) or {}
+        subtitle_file = Path(subtitle_data["filepath"]).resolve() if subtitle_data.get("filepath") else None
+        if not subtitle_file or not subtitle_file.is_file() or subtitle_file.parent != working.resolve():
+            raise RuntimeError("The selected subtitles could not be downloaded. No video without the requested subtitles was saved.")
+
+    def is_media(path):
+        return (path.is_file() and path.parent.resolve() == working.resolve()
+                and path.suffix.lstrip(".").lower() not in _SUBTITLE_EXTS | {"json", "part", "ytdl"}
+                and path != subtitle_file)
+
+    primary = [info.get("filepath"), *(item.get("filepath") for item in info.get("requested_downloads") or [])]
+    candidates = [Path(path).resolve() for path in primary if path and is_media(Path(path))]
+    primary_candidates = candidates[:]
     if not candidates:
-        candidates = [
-            p for p in destination.iterdir()
-            if p.is_file() and p.stat().st_mtime >= started - 2 and p.suffix not in {".part", ".ytdl"}
-        ]
+        candidates = [p.resolve() for p in observed if is_media(p)]
+    if not candidates:
+        candidates = [p for p in working.iterdir() if is_media(p)]
     if not candidates:
         raise RuntimeError("yt-dlp completed but the downloaded file could not be located")
-    source = max(candidates, key=lambda p: p.stat().st_mtime)
+    source = primary_candidates[0] if primary_candidates else max(candidates, key=lambda p: p.stat().st_mtime)
     title = _safe_title(info.get("title") or source.stem.replace(" [source]", ""))
     final_path = source
     converted = False
     skipped_x_conversion = False
 
     if target_format != "original":
-        output = unique_output(destination, title, target_format)
+        output = working / f"converted.{target_format}"
         context.update(82, f"Rendering {target_format.upper()} output")
         convert(source, output, target_format, x_compatible=x_compatible, on_line=context.write)
         final_path = output
         converted = True
-        if source != final_path and source.name.endswith(f"[source]{source.suffix}"):
-            try:
-                source.unlink()
-            except OSError:
-                pass
 
     if x_compatible:
         context.update(96, "Checking X compatibility")
@@ -216,6 +327,20 @@ def download(
             final_path = checked_path
         skipped_x_conversion = not changed
 
+    if subtitle_file:
+        context.update(97, "Adding the selected subtitles without re-encoding video")
+        extension = final_path.suffix.lstrip(".").lower()
+        if extension not in {"mp4", "mkv", "mov", "webm"}:
+            extension = "mkv"
+        captioned = working / f"captioned.{extension}"
+        embed_subtitle(final_path, subtitle_file, captioned, language=subtitle_language,
+                       title=selected_subtitle["label"], on_line=context.write)
+        final_path = captioned
+
+    with _output_lock:
+        finished = unique_output(destination, title, final_path.suffix.lstrip("."))
+        final_path.replace(finished)
+    final_path = finished
     media = probe(final_path)
     return {
         "path": str(final_path),
@@ -225,4 +350,5 @@ def download(
         "xCompatible": x_compatible,
         "xConversionSkipped": skipped_x_conversion,
         "audioTrack": audio_track_label or None,
+        "subtitleTrack": selected_subtitle,
     }

@@ -1,6 +1,30 @@
 import {ACTIVE, cleanUrl, discoverMedia} from "./shared.js";
 const $ = id => document.getElementById(id);
 let connected = false, busy = false, drive = {}, polling = false;
+let inspected = null, inspectedUrl = null;
+
+function languageLabel(track) {
+  if(track.label && track.label!==track.language)return track.label;
+  try{return new Intl.DisplayNames([navigator.language||"en"],{type:"language"}).of(track.language.replaceAll("_","-"))||track.language;}
+  catch{return track.language;}
+}
+function clearTracks() {
+  inspected=null;inspectedUrl=null;
+  $("audioTrack").replaceChildren(new Option("Automatic / source default",""));
+  $("subtitleTrack").replaceChildren(new Option("None",""));
+  $("audioField").hidden=true;$("subtitleField").hidden=true;$("sourceInfo").hidden=true;
+}
+function renderTracks(info) {
+  const audio=info.audioTracks||[], subtitles=info.subtitleTracks||[];
+  $("audioTrack").replaceChildren(new Option("Automatic / source default",""),...audio.map(track=>new Option(`${languageLabel(track)} [${track.language}]${track.original?" · original":track.dubbed?" · dubbed":""}`,track.formatId)));
+  $("audioField").hidden=audio.length<2;
+  const preferred=audio.find(track=>track.original)||audio.find(track=>track.default);
+  if(preferred&&audio.length>1)$("audioTrack").value=preferred.formatId;
+  $("subtitleTrack").replaceChildren(new Option("None",""),...subtitles.map((track,index)=>new Option(`${languageLabel(track)} [${track.language}] · ${track.translated?"auto-translated":track.automatic?"automatic captions":"creator subtitles"}`,String(index))));
+  $("subtitleField").hidden=!subtitles.length;
+  $("sourceInfo").textContent=info.title+(/facebook/i.test(info.site||"")?" · Only languages Facebook exposes for download are listed.":"");
+  $("sourceInfo").hidden=false;
+}
 
 async function request(action, fields = {}) {
   const response = await chrome.runtime.sendMessage({action, ...fields});
@@ -18,6 +42,10 @@ function update() {
   $("download").textContent = busy ? "Starting…" : remote ? "Download to Google Drive" : "Download to this computer";
   $("chooseFolder").disabled = !connected || busy;
   $("chooseDriveFolder").disabled = !connected || busy;
+  $("inspect").disabled=!connected||busy||!cleanUrl($("url").value);
+  const audioOnly=["mp3","m4a","wav"].includes($("format").value);
+  $("subtitleTrack").disabled=audioOnly;
+  $("subtitleHelp").textContent=audioOnly?"Subtitles require a video format.":"Switchable subtitles inside the video.";
 }
 async function openApp(view = "activity") {
   try { await request("open", {view}); }
@@ -66,10 +94,21 @@ async function currentPage() {
     $("mediaChoices").hidden = options.length < 2;
   } finally { update(); }
 }
-$("candidate").addEventListener("change", () => { $("url").value = $("candidate").value; update(); });
+$("candidate").addEventListener("change", () => { $("url").value = $("candidate").value; clearTracks();update(); });
+$("url").addEventListener("input",clearTracks);
 for (const id of ["url", "format", "destination"]) $(id).addEventListener("input", update);
 $("openApp").addEventListener("click", () => openApp());
 $("connectDrive").addEventListener("click", () => openApp("drive"));
+$("inspect").addEventListener("click",async()=>{
+  if($("inspect").disabled)return;
+  const url=$("url").value.trim();busy=true;clearTracks();update();message("Inspecting available audio and subtitles…");
+  try {
+    const {info}=await request("inspect",{url});
+    if(url!==$("url").value.trim())return;
+    inspected=info;inspectedUrl=url;renderTracks(info);message("");
+  }catch(error){clearTracks();message(error.message,true);}
+  finally{busy=false;update();}
+});
 $("chooseDriveFolder").addEventListener("click", async () => {
   busy = true; update(); message("Choose your destination in Google's folder browser. You can close this popup while choosing.");
   try {
@@ -95,7 +134,12 @@ $("downloadForm").addEventListener("submit", async event => {
   event.preventDefault(); if ($("download").disabled) return;
   busy = true; update(); message("");
   try {
-    await request("download", {url: $("url").value.trim(), outputFormat: $("format").value, destination: $("destination").value, xCompatible: $("xCompatible").checked});
+    if(inspectedUrl!==$("url").value.trim())clearTracks();
+    const audio=inspected?.audioTracks?.find(track=>track.formatId===$("audioTrack").value);
+    const choice=$("subtitleTrack").value;
+    const subtitle=!$("subtitleTrack").disabled&&choice!==""?inspected?.subtitleTracks?.[Number(choice)]:null;
+    await request("download", {url: $("url").value.trim(), outputFormat: $("format").value, destination: $("destination").value, xCompatible: $("xCompatible").checked,
+      audioFormatId:audio?.formatId||null,audioTrackLabel:audio?.label||null,subtitleLanguage:subtitle?.language||null,subtitleSource:subtitle?.source||"manual"});
     message("Download started. You can close this popup.");
   } catch (error) { message(error.message, true); }
   finally { busy = false; update(); await refresh(); }

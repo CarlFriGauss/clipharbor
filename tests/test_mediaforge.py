@@ -76,7 +76,7 @@ def test_audio_tracks_collapse_quality_variants_and_keep_dubs_distinct():
     assert tracks[0]["formatId"] == "251-0"
     assert tracks[0]["original"] is True
     assert tracks[1]["dubbed"] is True
-    assert download_format_selector("mp4", tracks[1]["formatId"]) == "bestvideo+140-2/bestvideo*+140-2"
+    assert download_format_selector("mp4", tracks[1]["formatId"]) == "bestvideo+140-2"
     assert download_format_selector("mp3", "140-2") == "140-2"
 
 

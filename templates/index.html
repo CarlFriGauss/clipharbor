@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.8.1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.9.0') }}">
 </head>
 <body>
   <header class="topbar">
@@ -72,14 +72,19 @@
                 <option value="wav">WAV · uncompressed audio</option>
               </select>
             </label>
-            <label id="audioTrackField" class="field hidden"><span>Audio track</span>
-              <select id="audioTrackSelect"><option value="">Automatic / source default</option></select>
-              <small class="field-help">Choose an original or dubbed language found in this video.</small>
+            <label id="audioTrackField" class="field hidden"><span id="audioTrackLabel">Audio track</span>
+              <select id="audioTrackSelect" aria-labelledby="audioTrackLabel" aria-describedby="audioTrackHelp"><option value="">Automatic / source default</option></select>
+              <small id="audioTrackHelp" class="field-help">Choose an original or dubbed language found in this video.</small>
+            </label>
+            <label id="subtitleTrackField" class="field hidden"><span id="subtitleTrackLabel">Subtitles</span>
+              <select id="subtitleTrackSelect" aria-labelledby="subtitleTrackLabel" aria-describedby="subtitleTrackHelp"><option value="">None</option></select>
+              <small id="subtitleTrackHelp" class="field-help">Saved inside the video as switchable subtitles. Use a player with subtitle support.</small>
             </label>
             <label class="field"><span id="downloadOutputLabel">Output folder</span>
               <div class="path-row"><input id="outputPath" type="text"><button id="browseOutput" class="icon-button" title="Choose folder">…</button></div>
             </label>
           </div>
+          <p id="sourceTrackNotice" class="field-help hidden"></p>
           <div class="download-destinations">
             <span class="field-label">Save to</span>
             <div class="destination-picker download-destination-picker" role="group" aria-label="Download destination">
@@ -303,9 +308,9 @@
     <div id="projectList" class="project-list"></div>
   </dialog>
 
-  <script src="{{ url_for('static', filename='destinations.js', v='0.8.1') }}" defer></script>
-  <script src="{{ url_for('static', filename='download-destinations.js', v='0.8.1') }}" defer></script>
-  <script src="{{ url_for('static', filename='editor-layout.js', v='0.8.1') }}" defer></script>
-  <script src="{{ url_for('static', filename='app.js', v='0.8.1') }}" defer></script>
+  <script src="{{ url_for('static', filename='destinations.js', v='0.9.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='download-destinations.js', v='0.9.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='editor-layout.js', v='0.9.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js', v='0.9.0') }}" defer></script>
 </body>
 </html>

@@ -24,9 +24,9 @@ hashes when replacing vendor tools. Do not use an FFmpeg build with `--enable-no
 Read THIRD-PARTY-NOTICES.md. The spec deliberately excludes FFmpeg binaries;
 do not replace the explicit file list with the entire vendor directory.
 
-Outputs: `dist\installer\ClipHarbor-Setup-0.8.1-win-x64.exe`,
-`dist\installer\ClipHarbor-Extension-0.8.1.zip`, and
-`dist\installer\ClipHarbor-Facebook-Companion-0.8.1.zip`.
+Outputs: `dist\installer\ClipHarbor-Setup-0.9.0-win-x64.exe`,
+`dist\installer\ClipHarbor-Extension-0.9.0.zip`, and
+`dist\installer\ClipHarbor-Facebook-Companion-0.9.0.zip`.
 The build script reads `mediaforge.runtime.VERSION` and passes it to Inno Setup
 so the application and installer versions agree.
 
@@ -39,7 +39,7 @@ with only the two stable companion origins allowed. The native protocol separate
 download/Drive actions from Facebook task actions. The user loads each extension
 explicitly; no browser policy or forced extension installation is used.
 See [extension setup](../browser-extension/README.md) and
-[release notes](RELEASE-0.8.1.md). Store publication is a separate review step.
+[release notes](RELEASE-0.9.0.md). Store publication is a separate review step.
 
 The Facebook companion is separate because Chrome does not support optional
 debugger permission. Its code attaches only to its dedicated Facebook tab, but

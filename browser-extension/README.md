@@ -1,6 +1,6 @@
 # ClipHarbor browser companion
 
-Chrome and Edge, Manifest V3. Requires ClipHarbor 0.8.0 or newer on the same
+Chrome and Edge, Manifest V3. Requires ClipHarbor 0.9.0 or newer on the same
 computer. The Windows installer registers the local bridge. No cloud processing,
 browser cookies, browsing history permission, or access to all websites is used.
 
@@ -10,9 +10,17 @@ browser cookies, browsing history permission, or access to all websites is used.
 4. Pin ClipHarbor, open a video page, and click the extension. Choose the link,
    format and **This computer** or **Google Drive**, then download.
 
+Click **Inspect audio & subtitles** to list the source's downloadable audio
+languages and caption tracks. Subtitles start at **None**; choose creator,
+automatic or translated captions when available. Captions are switchable inside
+the downloaded video and require a supporting player. Audio-only formats disable
+captions. Choices apply only to that URL and reset when it changes. Facebook
+player translations may not be exposed for download. Right-click downloads use
+source-default audio and no added captions. No browser permission is added.
+
 The Windows installer includes this folder at
 `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension`. Alternatively extract
-`ClipHarbor-Extension-0.8.1.zip` from the GitHub release and load its extracted
+`ClipHarbor-Extension-0.9.0.zip` from the GitHub release and load its extracted
 folder. Keep the folder in place. This version is not in either browser's store.
 No browser policies are changed and extensions are never silently force-installed.
 
