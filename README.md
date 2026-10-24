@@ -598,8 +598,9 @@ Release validation also exercised a real Drive sign-in, export upload, direct
 Drive download, shared connection after restart, and automatic Google token
 renewal. The uploaded file's size and folder were verified, and the direct
 download removed its temporary local files. YouTube, X, and Facebook Page publishing
-have adapter tests. Facebook personal-profile browser sharing was tested with a
-generated three-second video and a successful **Only me** post. Direct Facebook
+have adapter tests. The manual Facebook handoff was tested with a generated
+three-second video and a successful **Only me** post. The new Drive folder picker
+and automatic Facebook companion still need live account validation. Direct Facebook
 Page API publishing and X still need real-account validation. YouTube sign-in
 and upload permission were verified; its live upload test is deferred while the
 test account has a temporary posting restriction.
