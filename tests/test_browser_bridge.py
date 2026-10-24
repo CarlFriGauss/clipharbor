@@ -21,12 +21,17 @@ def test_extension_identity_and_permissions_match_native_host():
     assert "".join(chr(97 + int(char, 16)) for char in digest) == bridge.EXTENSION_ID
     native = json.loads((ROOT / "browser-extension/native-host.json").read_text())
     assert native["name"] == bridge.HOST_NAME
-    assert native["allowed_origins"] == [bridge.EXTENSION_ORIGIN]
+    assert native["allowed_origins"] == [bridge.EXTENSION_ORIGIN, bridge.FACEBOOK_ORIGIN]
     assert native["path"] == "ClipHarborBridge.exe"
     assert "host_permissions" not in manifest
     assert "content_scripts" not in manifest
     assert not {"cookies", "history", "tabs", "webRequest", "clipboardRead"}.intersection(manifest["permissions"])
     assert manifest["version"] == bridge.VERSION
+    facebook = json.loads((ROOT / "facebook-extension/manifest.json").read_text(encoding="utf-8"))
+    fb_digest = hashlib.sha256(base64.b64decode(facebook["key"])).hexdigest()[:32]
+    assert "".join(chr(97 + int(char,16)) for char in fb_digest) == bridge.FACEBOOK_EXTENSION_ID
+    assert "debugger" in facebook["permissions"] and "debugger" not in manifest["permissions"]
+    assert facebook["host_permissions"] == ["https://www.facebook.com/*"]
 
 
 def test_native_protocol_roundtrip_and_partial_reads():

@@ -21,6 +21,9 @@ function updateDownloadDestination() {
   $("#downloadDisconnectDrive").disabled = signingIn;
   $("#downloadConnectDrive").disabled = signingIn || !connectionStatus.drive?.googleConfigured;
   $("#downloadDriveFolderId").disabled = signingIn;
+  $("#downloadChooseDriveFolder").disabled = signingIn || !connectionStatus.drive?.googleConfigured;
+  $("#exportChooseDriveFolder").disabled = signingIn || !connectionStatus.drive?.googleConfigured;
+  if(document.activeElement !== $("#downloadDriveFolderId")) $("#downloadDriveFolderId").value = connectionStatus.drive?.folderId || "";
   if(!downloadConnecting) $("#downloadDriveStatus").textContent = signingIn ? "Finish signing in in your browser" : connected ? "Google Drive connected" : connectionStatus.drive?.needsReconnect ? "Sign in to Google Drive again" : "Connect Google Drive";
   $("#downloadGoogleHelp").textContent = !connectionStatus.drive?.googleConfigured ? "Google sign-in is not available in this ClipHarbor build yet. The publisher needs to enable it once; you do not need configuration files." : "Sign in with Google in your browser once. The same protected connection works in Download and Export and is remembered on this computer. ClipHarbor never receives your Google password.";
   $("#downloadDriveFolderNote").textContent = "Folder: " + (connectionStatus.drive?.folderName || "ClipHarbor Exports") + (connectionStatus.drive?.folderId ? "" : " · created on the first upload.");

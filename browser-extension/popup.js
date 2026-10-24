@@ -17,6 +17,7 @@ function update() {
   $("download").disabled = !connected || busy || !cleanUrl($("url").value) || (remote && !drive.connected);
   $("download").textContent = busy ? "Starting…" : remote ? "Download to Google Drive" : "Download to this computer";
   $("chooseFolder").disabled = !connected || busy;
+  $("chooseDriveFolder").disabled = !connected || busy;
 }
 async function openApp(view = "activity") {
   try { await request("open", {view}); }
@@ -69,6 +70,21 @@ $("candidate").addEventListener("change", () => { $("url").value = $("candidate"
 for (const id of ["url", "format", "destination"]) $(id).addEventListener("input", update);
 $("openApp").addEventListener("click", () => openApp());
 $("connectDrive").addEventListener("click", () => openApp("drive"));
+$("chooseDriveFolder").addEventListener("click", async () => {
+  busy = true; update(); message("Choose your destination in Google's folder browser. You can close this popup while choosing.");
+  try {
+    const {job} = await request("chooseDriveFolder");
+    while (true) {
+      const current = (await request("connectionJob", {jobId:job.id})).job;
+      if (!ACTIVE.has(current.status)) {
+        if (current.status !== "completed") throw new Error(current.error || "No folder was selected.");
+        drive = (await request("status")).drive; message("Drive folder selected: " + drive.folderName); break;
+      }
+      await new Promise(resolve => setTimeout(resolve,1000));
+    }
+  } catch(error) { message(error.message,true); }
+  finally { busy = false; update(); }
+});
 $("chooseFolder").addEventListener("click", async () => {
   busy = true; update(); message("Choose a folder in the ClipHarbor dialog.");
   try { const {settings} = await request("chooseFolder"); $("folder").textContent = settings.outputDirectory; message(""); }

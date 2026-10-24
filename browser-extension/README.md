@@ -1,6 +1,6 @@
 # ClipHarbor browser companion
 
-Chrome and Edge, Manifest V3. Requires ClipHarbor 0.7.0 or newer on the same
+Chrome and Edge, Manifest V3. Requires ClipHarbor 0.8.0 or newer on the same
 computer. The Windows installer registers the local bridge. No cloud processing,
 browser cookies, browsing history permission, or access to all websites is used.
 
@@ -12,7 +12,7 @@ browser cookies, browsing history permission, or access to all websites is used.
 
 The Windows installer includes this folder at
 `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension`. Alternatively extract
-`ClipHarbor-Extension-0.7.0.zip` from the GitHub release and load its extracted
+`ClipHarbor-Extension-0.8.0.zip` from the GitHub release and load its extracted
 folder. Keep the folder in place. This version is not in either browser's store.
 No browser policies are changed and extensions are never silently force-installed.
 
@@ -24,7 +24,10 @@ Jobs are held by the running desktop engine; a crash or app restart can lose
 job status. A disconnected job is never silently submitted a second time.
 
 For Drive, **Connect in ClipHarbor** opens the app's Google sign-in. Download,
-Export, and the extension share that connection and its dedicated folder.
+Export, and the extension share that connection and remembered destination.
+**Choose Drive folder** opens Google's own folder chooser. Select a writable
+folder once; later downloads use it until you choose another. An existing
+dedicated folder remains the default when no other folder has been selected.
 Reopen the popup after connecting. Google tokens stay in the operating-system
 credential store, not the extension. Browser storage keeps recent job IDs,
 progress and output locations; desktop storage remembers folder/format choices.
@@ -32,7 +35,9 @@ progress and output locations; desktop storage remembers folder/format choices.
 The extension reads the invoked page's URL and visible media/permalink elements
 using temporary `activeTab` access. There is no page scanner running on every
 site, cookie/password access, remote executable code, or analytics. Only the
-extension ID `nopjlekidanihaoahnpcnkacdpgljejl` is allowed to contact the bridge.
+downloader ID `nopjlekidanihaoahnpcnkacdpgljejl` can invoke download actions.
+The separate optional Facebook posting companion has its own allowed ID and
+can invoke only its posting protocol, not download actions.
 The manifest's public key makes that ID stable when loading this GitHub build.
 It is public app identity, not a private credential or an authenticity guarantee.
 Store publication would require review and aligning the store-assigned ID/key

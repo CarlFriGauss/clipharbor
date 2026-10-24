@@ -14,7 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 from .downloader import inspect_url
 from .cloud_downloads import download_to_destination, pending_downloads, reserve_retry, release_retry, retry_cloud_download, discard_download
-from .publishing import connections, authorize_google, connect_token, validate_destination, render_and_publish, retry_upload, disconnect_account as remove_connection
+from .publishing import connections, authorize_google, connect_token, validate_destination, snapshot_destination, render_and_publish, retry_upload, disconnect_account as remove_connection
 from .google_config import google_client
 from .ffmpeg import probe, require_tools, x_compatibility
 from .jobs import jobs
@@ -247,6 +247,7 @@ def create_app() -> Flask:
         if not isinstance(options, dict):
             raise ValueError("Download destination options must be an object")
         validate_destination(provider, str(data.get("outputFormat", "original")), options)
+        options = snapshot_destination(provider, options)
         if provider == "local" and not str(data.get("outputDirectory", "")).strip():
             raise ValueError("Choose an output folder for this computer")
         job = jobs.start(
@@ -286,7 +287,7 @@ def create_app() -> Flask:
 
     @app.before_request
     def protect_connections():
-        if request.path.startswith(("/api/connections", "/api/uploads", "/api/downloads")):
+        if request.path.startswith(("/api/connections", "/api/uploads", "/api/downloads", "/api/browser")):
             from urllib.parse import urlsplit
             if urlsplit(request.host_url).hostname not in {"127.0.0.1", "localhost", "::1"}:
                 return jsonify({"error": "Connections are only available on localhost"}), 403
@@ -302,6 +303,30 @@ def create_app() -> Flask:
         response.headers["Cache-Control"] = "no-store"
         return response
 
+    @app.get("/api/browser/facebook")
+    def facebook_browser_status():
+        from .browser_posting import facebook_tasks
+        return jsonify(facebook_tasks.status()), {"Cache-Control": "no-store"}
+
+    @app.post("/api/browser/facebook/register")
+    def register_facebook_browser():
+        from .browser_posting import facebook_tasks
+        data = _json()
+        return jsonify(facebook_tasks.register(data.get("browserId"), data.get("profileUrl"), data.get("name")))
+
+    @app.post("/api/browser/facebook/poll")
+    def poll_facebook_browser():
+        from .browser_posting import facebook_tasks
+        return jsonify({"task": facebook_tasks.poll(_json().get("browserId"))})
+
+    @app.post("/api/browser/facebook/report")
+    def report_facebook_browser():
+        from .browser_posting import facebook_tasks
+        data = _json()
+        facebook_tasks.update(data.get("browserId"), data.get("taskId"), data.get("lease"), data.get("phase"),
+                              message=data.get("message", ""), url=data.get("url", ""))
+        return jsonify({"ok": True})
+
     @app.post("/api/connections/<provider>")
     def connect_account(provider):
         data = _json()
@@ -313,6 +338,13 @@ def create_app() -> Flask:
             return jsonify(job.public()), 202
         connect_token(provider, data.get("token", ""), str(data.get("pageId", "")))
         return jsonify({"connected": True})
+
+    @app.post("/api/connections/drive/folder-picker")
+    def choose_drive_folder():
+        _json()
+        credentials = google_client(connections.get("drive"))
+        job = jobs.start("connection", authorize_google, provider="drive", credentials=credentials, pick_folder=True)
+        return jsonify(job.public()), 202
 
     @app.delete("/api/connections/<provider>")
     def disconnect_account(provider):
@@ -329,6 +361,7 @@ def create_app() -> Flask:
         provider = str(data.get("destination", "local"))
         options = data.get("deliveryOptions") or {}
         validate_destination(provider, path.suffix.lower().lstrip("."), options)
+        options = snapshot_destination(provider, options)
         result = {"path": str(path), "token": registry.add(path), "media": probe(path)}
         if provider not in {"local", "drive"} and not result["media"].get("video"):
             raise ValueError("Social exports require a video.")
@@ -341,6 +374,7 @@ def create_app() -> Flask:
         provider = str(data.get("destination", "local"))
         options = data.get("deliveryOptions") or {}
         validate_destination(provider, str(data.get("outputFormat", "mp4")), options)
+        options = snapshot_destination(provider, options)
         if provider not in {"local", "drive"} and not any(c.get("kind") == "video" and not c.get("hidden") for c in (data.get("project") or {}).get("clips", [])):
             raise ValueError("Social exports require a visible video section.")
         job = jobs.start(

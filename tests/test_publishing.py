@@ -112,7 +112,7 @@ def test_drive_verifies_remote_size_and_parent(store, tmp_path, monkeypatch):
     path = tmp_path / "sample.mp4"
     path.write_bytes(b"video")
     store.put("drive", {"access_token": "token"})
-    monkeypatch.setattr(p, "drive_folder", lambda *a: "dedicated")
+    monkeypatch.setattr(p, "drive_folder", lambda *a, **k: "dedicated")
     monkeypatch.setattr(p, "_google_upload", lambda *a: {"id": "uploaded"})
     monkeypatch.setattr(p, "_request", lambda *a, **k: {"id": "uploaded", "size": "4", "parents": ["wrong"]})
     with pytest.raises(p.PublishError, match="verify"):

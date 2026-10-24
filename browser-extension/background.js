@@ -79,6 +79,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       case "download": return startDownload(message);
       case "jobs": return refreshDownloads();
       case "chooseFolder": return native("chooseFolder");
+      case "chooseDriveFolder": return native("chooseDriveFolder");
+      case "connectionJob": return native("job", {jobId: message.jobId});
       case "open": return native("open", {view: message.view});
       case "reveal": return native("reveal", {jobId: message.jobId});
       default: throw new Error("Unknown extension action.");

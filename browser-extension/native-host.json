@@ -3,5 +3,5 @@
   "description": "ClipHarbor browser download companion",
   "path": "ClipHarborBridge.exe",
   "type": "stdio",
-  "allowed_origins": ["chrome-extension://nopjlekidanihaoahnpcnkacdpgljejl/"]
+  "allowed_origins": ["chrome-extension://nopjlekidanihaoahnpcnkacdpgljejl/", "chrome-extension://ngiefopmfphpgkoipgnipbajpmjcimag/"]
 }

@@ -19,11 +19,15 @@ try {
     New-Item -ItemType Directory -Force -Path '..\dist\ClipHarbor\browser-extension' | Out-Null
     $ExtensionFiles = Get-ChildItem -LiteralPath '..\browser-extension' -File
     $ExtensionFiles | Copy-Item -Destination '..\dist\ClipHarbor\browser-extension' -Force
+    New-Item -ItemType Directory -Force -Path '..\dist\ClipHarbor\facebook-extension' | Out-Null
+    $FacebookFiles = Get-ChildItem -LiteralPath '..\facebook-extension' -File
+    $FacebookFiles | Copy-Item -Destination '..\dist\ClipHarbor\facebook-extension' -Force
     Copy-Item -LiteralPath '..\browser-extension\native-host.json' -Destination '..\dist\ClipHarbor\clipharbor-native-host.json' -Force
     & $Python ..\tests\packaged_smoke.py ..\dist\ClipHarbor\ClipHarbor.exe --graphical-setup
     if ($LASTEXITCODE -ne 0) { throw 'Graphical first-run smoke test failed. Installer will not be built.' }
     & $Iscc /Q "/DAppVersion=$AppVersion" ClipHarbor.iss
     if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
     Compress-Archive -LiteralPath $ExtensionFiles.FullName -DestinationPath "..\dist\installer\ClipHarbor-Extension-$AppVersion.zip" -Force
+    Compress-Archive -LiteralPath $FacebookFiles.FullName -DestinationPath "..\dist\installer\ClipHarbor-Facebook-Companion-$AppVersion.zip" -Force
     Get-FileHash "..\dist\installer\ClipHarbor-Setup-$AppVersion-win-x64.exe" -Algorithm SHA256
 } finally { Pop-Location; $env:PYTHONPATH = $OriginalPythonPath }

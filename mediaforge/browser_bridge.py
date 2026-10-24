@@ -24,6 +24,9 @@ from .runtime import VERSION, RESOURCE_ROOT, data_root, downloads_directory
 HOST_NAME = "com.clipharbor.downloader"
 EXTENSION_ID = "nopjlekidanihaoahnpcnkacdpgljejl"
 EXTENSION_ORIGIN = f"chrome-extension://{EXTENSION_ID}/"
+FACEBOOK_EXTENSION_ID = "ngiefopmfphpgkoipgnipbajpmjcimag"
+FACEBOOK_ORIGIN = f"chrome-extension://{FACEBOOK_EXTENSION_ID}/"
+FACEBOOK_ACTIONS = {"browserRegister", "browserPoll", "browserReport", "browserStatus"}
 MAX_MESSAGE = 64 * 1024
 FORMATS = {"mp4", "original", "mkv", "webm", "mov", "mp3", "m4a", "wav"}
 
@@ -160,7 +163,7 @@ def handle(message):
     if not isinstance(message, dict) or message.get("protocol") != 1:
         raise BridgeError("Update the ClipHarbor extension and desktop app together.")
     action = message.get("action")
-    if action not in {"status", "download", "job", "open", "chooseFolder", "reveal"}:
+    if action not in {"status", "download", "job", "open", "chooseFolder", "chooseDriveFolder", "reveal", *FACEBOOK_ACTIONS}:
         raise BridgeError("Unknown extension action.")
     # Validate before starting a process or touching a website.
     if action == "download":
@@ -169,13 +172,21 @@ def handle(message):
             raise BridgeError("Choose a supported format and destination.")
     if action in {"job", "reveal"}:
         identifier = job_id(message.get("jobId"))
-    client, health = ensure_desktop()
+    if action in {"browserPoll", "browserReport"}:
+        running = running_client()
+        if not running:
+            if action == "browserPoll":
+                return {"task": None}
+            raise BridgeError("ClipHarbor closed. The browser task must stop; check Facebook before retrying.")
+        client, health = running
+    else:
+        client, health = ensure_desktop()
     try:
-        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 7, 0)
+        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 8, 0)
     except (KeyError, ValueError, AttributeError):
         compatible = False
     if not compatible:
-        raise BridgeError("Quit the older ClipHarbor app, install version 0.7.0 or newer, then try again.")
+        raise BridgeError("Quit the older ClipHarbor app, install version 0.8.0 or newer, then try again.")
     if action == "status":
         drive = client.api("/api/connections")["drive"]
         return {"version": health["version"], "settings": settings(),
@@ -196,6 +207,16 @@ def handle(message):
             prefs["outputDirectory"] = paths[0]
             save_settings(prefs)
         return {"settings": prefs}
+    if action == "chooseDriveFolder":
+        return {"job": public_job(client.api("/api/connections/drive/folder-picker", {}))}
+    if action == "browserRegister":
+        return {"facebook": client.api("/api/browser/facebook/register", {key: message.get(key) for key in ("browserId", "profileUrl", "name")})}
+    if action == "browserStatus":
+        return {"facebook": client.api("/api/browser/facebook")}
+    if action == "browserPoll":
+        return client.api("/api/browser/facebook/poll", {"browserId": message.get("browserId")})
+    if action == "browserReport":
+        return client.api("/api/browser/facebook/report", {key: message.get(key) for key in ("browserId", "taskId", "lease", "phase", "message", "url")})
     if action == "reveal":
         result = client.api("/api/jobs/" + identifier).get("result") or {}
         token = result.get("token", "")
@@ -242,7 +263,7 @@ def write_message(stream, value):
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] != EXTENSION_ORIGIN:
+    if len(sys.argv) < 2 or sys.argv[1] not in {EXTENSION_ORIGIN, FACEBOOK_ORIGIN}:
         return 1
     if os.name == "nt":
         import msvcrt
@@ -258,6 +279,8 @@ def main():
             write_message(output_stream, {"ok": False, "error": str(error)})
             return 1
         try:
+            if isinstance(message, dict) and ((message.get("action") in FACEBOOK_ACTIONS) != (sys.argv[1] == FACEBOOK_ORIGIN)):
+                raise BridgeError("This extension is not allowed to perform that action.")
             response = {"ok": True, **handle(message)}
         except BridgeError as error:
             response = {"ok": False, "error": str(error)}

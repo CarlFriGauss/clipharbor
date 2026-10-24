@@ -188,9 +188,11 @@ def _access_token(provider):
     return token
 
 
-def authorize_google(context, *, provider, credentials=None, folder_id=""):
+def authorize_google(context, *, provider, credentials=None, folder_id="", pick_folder=False):
     if provider not in SCOPES:
         raise ValueError("Unknown Google destination")
+    if pick_folder and provider != "drive":
+        raise ValueError("Folder selection is available only for Google Drive")
     folder_id = str(folder_id).strip() if provider == "drive" else ""
     if folder_id and not re.fullmatch(r"[\w-]+", folder_id):
         raise ValueError("Use a Google Drive folder ID, not a folder URL.")
@@ -207,6 +209,8 @@ def authorize_google(context, *, provider, credentials=None, folder_id=""):
                         and previous.get("client_id") == client_id
                         and not previous.get("existing_folder_access"))
     existing_folder_access = bool(folder_id) and not known_app_folder
+    if pick_folder:
+        existing_folder_access = False
     requested_scope = "https://www.googleapis.com/auth/drive" if existing_folder_access else SCOPES[provider]
     nonce = secrets.token_urlsafe(32)
     verifier = secrets.token_urlsafe(64)
@@ -222,7 +226,8 @@ def authorize_google(context, *, provider, credentials=None, folder_id=""):
             if urllib.parse.urlsplit(self.path).path != "/callback" or not secrets.compare_digest(query.get("state", [""])[0], nonce):
                 self.send_error(400, "Invalid sign-in response")
                 return
-            result.update(code=query.get("code", [None])[0], error=query.get("error", [None])[0])
+            result.update(code=query.get("code", [None])[0], error=query.get("error", [None])[0],
+                          picked=query.get("picked_file_ids", [""])[0])
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
@@ -233,12 +238,16 @@ def authorize_google(context, *, provider, credentials=None, folder_id=""):
     with HTTPServer(("127.0.0.1", 0), Callback) as server:
         server.timeout = 1
         redirect = f"http://127.0.0.1:{server.server_port}/callback"
-        url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode({
+        parameters = {
             "client_id": client_id, "redirect_uri": redirect, "response_type": "code",
             "scope": requested_scope, "access_type": "offline", "prompt": "consent",
             "state": nonce, "code_challenge": challenge, "code_challenge_method": "S256",
-        })
-        context.update(5, "Complete Google sign-in in your browser")
+        }
+        if pick_folder:
+            parameters.update(trigger_onepick="true", allow_folder_selection="true", allow_multiple="false",
+                              mimetypes="application/vnd.google-apps.folder")
+        url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(parameters)
+        context.update(5, "Choose a destination folder in Google's browser window" if pick_folder else "Complete Google sign-in in your browser")
         if not webbrowser.open(url):
             raise PublishError("Could not open the browser for Google sign-in.")
         deadline = time.monotonic() + 300
@@ -255,12 +264,27 @@ def authorize_google(context, *, provider, credentials=None, folder_id=""):
     response = _form("POST", "https://oauth2.googleapis.com/token", values)
     if not response.get("refresh_token"):
         raise PublishError("Google did not grant offline access. Reconnect and allow the requested permission.")
+    selected_folder = None
+    if pick_folder:
+        picked = result.get("picked", "").split(",")
+        if len(picked) != 1 or not re.fullmatch(r"[A-Za-z0-9_-]+", picked[0]):
+            raise PublishError("No destination folder was selected. Your previous folder and connection were kept.")
+        folder_id = picked[0]
+        selected_folder = _request("GET", "https://www.googleapis.com/drive/v3/files/" + folder_id +
+            "?fields=id,name,mimeType,trashed,capabilities/canAddChildren&supportsAllDrives=true", token=response["access_token"])
+        if selected_folder.get("trashed") or selected_folder.get("mimeType") != "application/vnd.google-apps.folder":
+            raise PublishError("Choose a Google Drive folder as the destination.")
+        if selected_folder.get("capabilities", {}).get("canAddChildren") is not True:
+            raise PublishError("You do not have permission to upload into that folder. Choose another folder.")
     account = {
         "client_id": client_id, "client_secret": client_secret,
         "access_token": response["access_token"], "refresh_token": response["refresh_token"],
         "expires_at": time.time() + response.get("expires_in", 3600),
-        "folder_name": previous.get("folder_name", "ClipHarbor Exports"), "folder_id": folder_id, "existing_folder_access": existing_folder_access,
+        "folder_name": selected_folder["name"] if selected_folder else previous.get("folder_name", "ClipHarbor Exports"),
+        "folder_id": folder_id, "existing_folder_access": existing_folder_access,
     }
+    if pick_folder:
+        account["selected_folder_ids"] = list(dict.fromkeys([*previous.get("selected_folder_ids", []), folder_id]))[-100:]
     if response.get("refresh_token_expires_in"):
         account["refresh_expires_at"] = time.time() + response["refresh_token_expires_in"]
     with _account_locks[provider]:
@@ -271,7 +295,7 @@ def authorize_google(context, *, provider, credentials=None, folder_id=""):
                 pass
             raise PublishError("This connection was disconnected while sign-in was open. Start sign-in again if needed.")
         connections.put(provider, account)
-    return {"provider": provider, "connected": True}
+    return {"provider": provider, "connected": True, "folderId": account["folder_id"], "folderName": account["folder_name"]}
 
 
 def disconnect_account(provider):
@@ -328,8 +352,13 @@ def validate_destination(provider, output_format, options=None):
     if provider == "facebook_browser":
         if output_format != "mp4":
             raise ValueError("Choose MP4 video for Facebook browser sharing.")
-        if (options or {}).get("facebookTarget", "profile") not in {"profile", "page"}:
+        if (options or {}).get("facebookTarget", "profile") not in {"profile", "page", "profile_auto"}:
             raise ValueError("Choose a Facebook personal profile or Page.")
+        if (options or {}).get("facebookTarget") == "profile_auto":
+            from .browser_posting import AUDIENCES, facebook_tasks
+            if (options or {}).get("audience", "only_me") not in AUDIENCES:
+                raise ValueError("Choose a Facebook audience.")
+            facebook_tasks.require_ready()
         return  # Facebook handles profile sign-in and posting in the browser.
     if not connections.status()[provider]["connected"]:
         raise ValueError("Connect this destination before starting the export.")
@@ -347,17 +376,17 @@ def validate_destination(provider, output_format, options=None):
         if folder_id and not re.fullmatch(r"[\w-]+", folder_id):
             raise ValueError("Use a Google Drive folder ID, not a folder URL.")
         account = connections.get("drive")
-        if folder_id and folder_id != account.get("folder_id") and not account.get("existing_folder_access"):
+        if folder_id and folder_id != account.get("folder_id") and folder_id not in account.get("selected_folder_ids", []) and not account.get("existing_folder_access"):
             raise ValueError("Reconnect Google Drive with this folder ID to authorize access to an existing folder.")
 
 
 _folder_lock = threading.RLock()
 
 
-def drive_folder(token, requested=""):
+def drive_folder(token, requested="", *, remember=True, use_app_folder=False):
     with _folder_lock, _account_locks["drive"]:
         account = connections.get("drive")
-        folder_id = requested or account.get("folder_id")
+        folder_id = requested or (None if use_app_folder else account.get("folder_id"))
         if folder_id:
             folder = _request("GET", "https://www.googleapis.com/drive/v3/files/" + folder_id +
                               "?fields=id,name,mimeType,trashed&supportsAllDrives=true", token=token)
@@ -371,9 +400,19 @@ def drive_folder(token, requested=""):
             folders = _request("GET", "https://www.googleapis.com/drive/v3/files?" + query, token=token).get("files", [])
             folder = folders[0] if folders else _request("POST", "https://www.googleapis.com/drive/v3/files",
                 token=token, data={"name": "ClipHarbor Exports", "mimeType": "application/vnd.google-apps.folder"})
-        account.update(folder_id=folder["id"], folder_name=folder["name"])
-        connections.put("drive", account)
+        if remember or not account.get("folder_id"):
+            account.update(folder_id=folder["id"], folder_name=folder["name"])
+            connections.put("drive", account)
         return folder["id"]
+
+
+def snapshot_destination(provider, options):
+    """A queued upload keeps its chosen folder if another window changes defaults."""
+    options = dict(options)
+    if provider == "drive":
+        options["folderId"] = str(options.get("folderId") or connections.get("drive").get("folder_id") or "")
+        options["useAppFolder"] = not bool(options["folderId"])
+    return options
 
 
 def _google_upload(context, path, provider, metadata, token):
@@ -501,6 +540,9 @@ def upload(context, *, result, provider, options=None):
     if provider != "drive" and not result.get("media", {}).get("video"):
         raise ValueError("Social exports require a video.")
     if provider == "facebook_browser":
+        if options.get("facebookTarget") == "profile_auto":
+            from .browser_posting import facebook_tasks
+            return facebook_tasks.run(context, result, options)
         context.update(98, "Video ready — finish posting in Facebook")
         try:
             opened = bool(webbrowser.open(FACEBOOK_BROWSER_URL))
@@ -513,7 +555,8 @@ def upload(context, *, result, provider, options=None):
     token = access_token(provider)
     context.update(81, "Connecting to export destination")
     if provider == "drive":
-        folder_id = drive_folder(token, str(options.get("folderId", "")).strip())
+        folder_id = drive_folder(token, str(options.get("folderId", "")).strip(), remember=False,
+                                 use_app_folder=options.get("useAppFolder") is True)
         remote = _google_upload(context, path, provider, {"name": path.name, "parents": [folder_id]}, token)
         # Read back size and parent so a successful job means the requested folder contains the complete file.
         check = _request("GET", f"https://www.googleapis.com/drive/v3/files/{remote['id']}?fields=id,size,parents,webViewLink&supportsAllDrives=true", token=token)
@@ -556,13 +599,15 @@ def render_and_publish(context, *, provider="local", delivery_options=None, **kw
         return upload(context, result=result, provider=provider, options=delivery_options)
     except Exception as error:
         # Keep the rendered media in the job result for retry without rendering again.
-        context.manager.update(context.job_id, result=result)
-        raise PublishError(f"{error} Local export retained at {result['path']}. Use Retry upload in Activity.") from None
+        uncertain = bool(getattr(error, "uncertain", False))
+        context.manager.update(context.job_id, result={**result, **({"browserPostingUncertain": True} if uncertain else {})})
+        recovery = "Check Facebook before trying again." if uncertain else "Use Retry upload in Activity."
+        raise PublishError(f"{error} Local export retained at {result['path']}. {recovery}") from None
 
 
 def retry_upload(context, *, result, provider, options):
     try:
         return upload(context, result=result, provider=provider, options=options)
     except Exception as error:
-        context.manager.update(context.job_id, result=result)
+        context.manager.update(context.job_id, result={**result, **({"browserPostingUncertain": True} if getattr(error, "uncertain", False) else {})})
         raise PublishError(f"{error} Local export retained at {result['path']}.") from None

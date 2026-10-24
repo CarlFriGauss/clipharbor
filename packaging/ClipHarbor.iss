@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.7.0"
+  #define AppVersion "0.8.0"
 #endif
 [Setup]
 AppId={{C4D10547-F495-4B40-A8C8-98B31505B3D1}
@@ -33,6 +33,7 @@ Name: "{group}\ClipHarbor"; Filename: "{app}\ClipHarbor.exe"; WorkingDir: "{app}
 Name: "{autodesktop}\ClipHarbor"; Filename: "{app}\ClipHarbor.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 Name: "{group}\Uninstall ClipHarbor"; Filename: "{uninstallexe}"
 Name: "{group}\Set up browser extension"; Filename: "{app}\browser-extension\setup.html"
+Name: "{group}\Set up Facebook posting"; Filename: "{app}\facebook-extension\setup.html"
 
 [Registry]
 ; Register a dedicated stdio bridge. Do not force-install an extension or grant

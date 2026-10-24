@@ -33,3 +33,5 @@ browser-downloads.json
 .browser-downloads-*.tmp
 instance.json
 instance.lock
+browser-posting.json
+.browser-posting.tmp

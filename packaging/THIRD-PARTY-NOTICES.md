@@ -29,7 +29,7 @@ distribution metadata in this bundle for license texts and exact build versions.
   https://pyinstaller.org/en/stable/license.html
 - Certifi certificate bundle: MPL-2.0. https://github.com/certifi/python-certifi
   Exact Certifi and PyInstaller sources are in ClipHarbor-third-party-sources.zip
-  alongside this release: https://github.com/CarlFriGauss/clipharbor/releases/tag/v0.7.0
+  alongside this release: https://github.com/CarlFriGauss/clipharbor/releases/tag/v0.8.0
 
 The installer includes Node and Python license texts and dependency distribution
 metadata. FFmpeg is obtained by the end user from its upstream distributor, not

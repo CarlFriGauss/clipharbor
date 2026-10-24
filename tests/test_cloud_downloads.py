@@ -56,7 +56,7 @@ def test_cloud_download_verifies_upload_then_cleans_only_its_staging(setup, monk
     context, job, kwargs, store = setup
     observed = []
     monkeypatch.setattr(publishing, "access_token", lambda provider: "token")
-    monkeypatch.setattr(publishing, "drive_folder", lambda *args: "folder")
+    monkeypatch.setattr(publishing, "drive_folder", lambda *args, **kwargs: "folder")
     monkeypatch.setattr(publishing, "_google_upload", lambda *args: {"id": "uploaded"})
 
     def verify(method, url, **options):
@@ -104,7 +104,7 @@ def test_failed_upload_survives_reload_and_retries_without_downloading(setup, mo
 def test_failed_verification_keeps_the_only_complete_copy(setup, monkeypatch):
     context, job, kwargs, store = setup
     monkeypatch.setattr(publishing, "access_token", lambda provider: "token")
-    monkeypatch.setattr(publishing, "drive_folder", lambda *args: "folder")
+    monkeypatch.setattr(publishing, "drive_folder", lambda *args, **kwargs: "folder")
     monkeypatch.setattr(publishing, "_google_upload", lambda *args: {"id": "uploaded"})
     monkeypatch.setattr(publishing, "_request", lambda *a, **k: {"size": "4", "parents": ["folder"]})
     with pytest.raises(publishing.PublishError, match="verify"):
