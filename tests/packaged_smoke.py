@@ -139,7 +139,7 @@ def main():
                 assert browser_job["id"] in [job["id"] for job in api("/api/jobs")["jobs"]]
                 # Caption discovery and muxing must work in the frozen build,
                 # including the minimal native host, without external websites.
-                subprocess.run([str(tools/"ffmpeg.exe"), "-v", "error", "-f", "lavfi", "-i",
+                subprocess.run([str(media_tools/"ffmpeg.exe"), "-v", "error", "-f", "lavfi", "-i",
                     "testsrc2=size=160x90:rate=10:duration=1", "-f", "lavfi", "-i", "sine=duration=1",
                     "-shortest", "-c:v", "libx264", "-c:a", "aac", str(root/"caption-source.mp4")], env=env, check=True, capture_output=True)
                 (root/"fr.vtt").write_text("WEBVTT\n\n00:00.000 --> 00:00.900\nBonjour de ClipHarbor\n", encoding="utf-8")
