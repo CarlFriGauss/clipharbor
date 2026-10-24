@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.7.0') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.8.0') }}">
 </head>
 <body>
   <header class="topbar">
@@ -95,9 +95,10 @@
               <button id="downloadConnectDrive" class="button secondary" type="button">Sign in with Google</button>
             </div>
             <p id="downloadDriveFolderNote" class="field-help">Folder: ClipHarbor Exports · created on the first upload.</p>
+            <button id="downloadChooseDriveFolder" class="button secondary" type="button">Choose Drive folder…</button>
             <details class="drive-setup">
-              <summary>Use a different Drive folder</summary>
-              <label class="field"><span>Drive folder ID (optional)</span><input id="downloadDriveFolderId" placeholder="Leave empty to use ClipHarbor Exports"><small>Paste the ID from your Drive folder URL. An existing folder may require reconnecting with broader Drive access.</small></label>
+              <summary>Advanced: enter a folder ID</summary>
+              <label class="field"><span>Drive folder ID (optional)</span><input id="downloadDriveFolderId" placeholder="Leave empty to use ClipHarbor Exports"><small>Prefer Choose Drive folder above to keep access limited to folders you select.</small></label>
             </details>
           </section>
           <label id="xOption" class="option-toggle" for="xCompatible">
@@ -245,7 +246,9 @@
     </div>
     <p id="exportStorageNote" class="dialog-help"></p>
     <div id="facebookTargetField" class="hidden">
-      <label class="field"><span>Post to Facebook</span><select id="facebookTarget"><option value="profile">Personal profile · finish in Facebook</option><option value="page">Page I manage · finish in Facebook</option><option value="page_api">Page · direct API upload (advanced)</option></select></label>
+      <label class="field"><span>Post to Facebook</span><select id="facebookTarget"><option value="profile_auto">My profile · post through browser companion</option><option value="profile">Personal profile · finish manually in Facebook</option><option value="page">Page I manage · finish manually in Facebook</option><option value="page_api">Page · direct API upload (advanced)</option></select></label>
+      <section id="facebookBrowserSetup" class="connection-panel hidden"><strong id="facebookBrowserStatus">Connect the optional Facebook companion</strong><p class="field-help">Load the included facebook-extension folder in Chrome or Edge, open your own Facebook profile, then click its ClipHarbor Post icon and Connect this profile. This companion needs Chrome's powerful debugger permission to attach your file. It uses your signed-in browser; no Facebook password is stored by ClipHarbor.</p><a class="button secondary" href="https://github.com/CarlFriGauss/clipharbor#facebook-browser-posting" target="_blank" rel="noopener noreferrer">Facebook companion setup ↗</a></section>
+      <label id="facebookAudienceField" class="field hidden"><span>Facebook audience for this post</span><select id="facebookAudience"><option value="only_me">Only me · private test</option><option value="friends">Friends</option><option value="public">Public</option></select><small>The companion verifies this audience before posting and leaves your Facebook default unchanged.</small></label>
       <p id="facebookProfileHelp" class="dialog-help">ClipHarbor prepares your MP4 and opens Facebook. Choose Photo/video, attach the file, and post there. Facebook does not allow apps to upload directly to personal profiles. Your browser handles sign-in; no Facebook password or access token is saved in ClipHarbor.</p>
     </div>
     <section id="connectionPanel" class="connection-panel hidden" aria-label="Destination connection">
@@ -261,8 +264,9 @@
       <button id="connectDestination" class="button secondary" type="button">Connect destination</button>
     </section>
     <div id="driveFolderField" class="hidden">
-      <p class="dialog-help">Dedicated folder: <strong id="driveFolderName">ClipHarbor Exports</strong>. ClipHarbor creates it on the first upload and remembers it.</p>
-      <label class="field"><span>Drive folder ID (optional)</span><input id="driveFolderId" placeholder="Leave empty to use ClipHarbor Exports"><small>The chosen folder is remembered. Connecting with an existing folder ID requests broader Drive access in Google sign-in; leaving this empty limits access to files created by ClipHarbor.</small></label>
+      <p class="dialog-help">Destination folder: <strong id="driveFolderName">ClipHarbor Exports</strong>. Shared with Download and the browser extension.</p>
+      <button id="exportChooseDriveFolder" class="button secondary" type="button">Choose Drive folder…</button>
+      <details class="drive-setup"><summary>Advanced: enter a folder ID</summary><label class="field"><span>Drive folder ID (optional)</span><input id="driveFolderId" placeholder="Leave empty to use ClipHarbor Exports"><small>Prefer Choose Drive folder to grant access only to folders you select. An unselected existing ID can require broader access.</small></label></details>
     </div>
     <div id="socialDetails" class="form-grid hidden">
       <label id="deliveryTitleField" class="field full"><span>Video title (optional)</span><input id="deliveryTitle" maxlength="100" placeholder="Use the export file name"></label>
@@ -299,9 +303,9 @@
     <div id="projectList" class="project-list"></div>
   </dialog>
 
-  <script src="{{ url_for('static', filename='destinations.js', v='0.7.0') }}" defer></script>
-  <script src="{{ url_for('static', filename='download-destinations.js', v='0.7.0') }}" defer></script>
-  <script src="{{ url_for('static', filename='editor-layout.js', v='0.7.0') }}" defer></script>
-  <script src="{{ url_for('static', filename='app.js', v='0.7.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='destinations.js', v='0.8.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='download-destinations.js', v='0.8.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='editor-layout.js', v='0.8.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js', v='0.8.0') }}" defer></script>
 </body>
 </html>

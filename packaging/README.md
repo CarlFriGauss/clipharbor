@@ -24,8 +24,9 @@ hashes when replacing vendor tools. Do not use an FFmpeg build with `--enable-no
 Read THIRD-PARTY-NOTICES.md. The spec deliberately excludes FFmpeg binaries;
 do not replace the explicit file list with the entire vendor directory.
 
-Outputs: `dist\installer\ClipHarbor-Setup-0.7.0-win-x64.exe` and
-`dist\installer\ClipHarbor-Extension-0.7.0.zip`.
+Outputs: `dist\installer\ClipHarbor-Setup-0.8.0-win-x64.exe`,
+`dist\installer\ClipHarbor-Extension-0.8.0.zip`, and
+`dist\installer\ClipHarbor-Facebook-Companion-0.8.0.zip`.
 The build script reads `mediaforge.runtime.VERSION` and passes it to Inno Setup
 so the application and installer versions agree.
 
@@ -34,10 +35,19 @@ ClipHarborBridge.exe, sharing collected runtime DLLs. The bridge's separate
 dependency graph excludes yt-dlp, Flask and Tk; media work runs in the normal
 app. The extension is copied from an explicit flat file list (no caches or user
 data). Inno Setup registers `com.clipharbor.downloader` per user for Chrome/Edge,
-with only the stable extension origin allowed. The user loads the extension
+with only the two stable companion origins allowed. The native protocol separates
+download/Drive actions from Facebook task actions. The user loads each extension
 explicitly; no browser policy or forced extension installation is used.
 See [extension setup](../browser-extension/README.md) and
-[release notes](RELEASE-0.7.0.md). Store publication is a separate review step.
+[release notes](RELEASE-0.8.0.md). Store publication is a separate review step.
+
+The Facebook companion is separate because Chrome does not support optional
+debugger permission. Its code attaches only to its dedicated Facebook tab, but
+that browser permission itself is powerful and not limited to one site. It is
+never added to the downloader. Both companion folders use explicit flat file
+lists, excluding caches and user state. Google Picker API must be enabled in the
+publisher's existing project; native OAuth picker mode uses the existing desktop
+registration with drive.file, PKCE and a loopback callback, without an API key.
 
 The build probes a working Tcl/Tk instance and explicitly collects its loaded
 DLLs and library scripts as a matched set. Do not rely on DLL discovery through

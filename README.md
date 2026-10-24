@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.7.0/ClipHarbor-Setup-0.7.0-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.0/ClipHarbor-Setup-0.8.0-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -32,7 +32,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.7.0/ClipHarbor-Setup-0.7.0-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.0/ClipHarbor-Setup-0.8.0-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -41,7 +41,8 @@ then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
 
-Version **0.7.0** adds the optional [browser extension](#browser-extension) for
+Version **0.8.0** adds visual Google Drive destination selection and an optional
+Facebook posting companion. It also includes the [browser extension](#browser-extension) for
 Chrome and Edge, with background downloads to this computer or Google Drive.
 The installer registers its small local bridge and includes the extension files.
 Loading the extension in your browser is a one-time manual step.
@@ -57,7 +58,7 @@ YouTube requires its own Google upload permission. X and Facebook Page publishin
 require the platform tokens described below. Personal-profile sharing needs no
 Facebook token in ClipHarbor. Each installer user signs in to their own account.
 Advanced source builds need the publisher registration described below.
-[Release notes](packaging/RELEASE-0.7.0.md)
+[Release notes](packaging/RELEASE-0.8.0.md)
 explain the supported destinations and validation. The earlier Tcl/Tk startup
 fix remains included; install over the old version without deleting projects.
 
@@ -69,11 +70,11 @@ Windows security. Download only from this repository's releases. See
 
 ### Browser extension
 
-1. Install **ClipHarbor 0.7.0 or newer** and open it once to finish media-tool setup.
+1. Install **ClipHarbor 0.8.0 or newer** and open it once to finish media-tool setup.
 2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 3. Enable **Developer mode**, click **Load unpacked**, and select
    `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension` (inside your installation).
-   Alternatively, download [ClipHarbor-Extension-0.7.0.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.7.0/ClipHarbor-Extension-0.7.0.zip),
+   Alternatively, download [ClipHarbor-Extension-0.8.0.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.0/ClipHarbor-Extension-0.8.0.zip),
    extract it to a permanent folder, and select that folder.
 4. Pin ClipHarbor to your browser toolbar. Open a video page, click ClipHarbor,
    choose the link, format and **This computer** or **Google Drive**, and download.
@@ -113,6 +114,60 @@ registrations without deleting media or connections. Source and installer
 registrations share a name; the most recent setup wins. Re-run the installer to
 switch back to its bridge. Unix registration paths are provided; live Windows
 validation is the release target. See the [extension guide](browser-extension/README.md).
+
+### Choose a Google Drive folder
+
+In Download or Export choose **Google Drive → Choose Drive folder…**. Google opens
+its own folder browser. Select a folder you can upload into; ClipHarbor verifies
+it and remembers it for Download, Export, and the downloader extension. The
+extension has its own **Choose folder…** button. Folder selection requests only
+`drive.file` access to folders explicitly selected through Google’s picker.
+Normal uploads reuse the remembered connection and do not reopen the picker.
+
+Cancelling, choosing a non-folder, or selecting a read-only folder keeps the
+previous connection and default. Each queued upload snapshots its destination;
+changing the default while another job runs does not redirect that job. Existing
+manual folder-ID setup remains available under Advanced and can require broader
+Drive access. A publisher must enable **Google Picker API** once in the same
+Google Cloud project; no API key or extra setup is needed by installer users.
+
+### Facebook browser posting
+
+For an automatic **video + caption → Facebook post** workflow on your own
+profile, this release includes a separate, optional **ClipHarbor Post** browser
+companion. This is experimental automation of Facebook’s website, not an official
+personal-profile publishing API. The normal downloader extension gains no
+Facebook host or debugger permission.
+
+1. In Chrome/Edge’s Extensions page load the installed
+   `%LOCALAPPDATA%\Programs\ClipHarbor\facebook-extension` folder, or extract
+   `ClipHarbor-Facebook-Companion-0.8.0.zip` from the release and load that folder.
+2. Review its stronger **debugger** permission. Chrome does not allow this
+   permission to be requested optionally. Although this companion’s code attaches
+   only to the Facebook tab it creates, the browser permission itself is powerful
+   and is not technically limited to one site. Installing this companion is optional.
+3. Open your own Facebook profile, with **Edit profile** visible. Click the
+   **ClipHarbor Post** icon and **Connect this Facebook profile** once.
+4. In Export choose **Facebook → My profile · post through browser companion**,
+   enter your caption and audience, and click **Post video to Facebook** or
+   **Render & post to Facebook**. The audience starts at **Only me**.
+
+Keep the connected browser open. It checks for export tasks about every 30
+seconds, opens the connected profile, attaches the local MP4 through Chrome’s
+file input, fills the caption, verifies the requested audience and posts. Chrome
+shows a debugging banner while it works. The file is not encoded into large
+messages or loaded into extension memory; media rendering stays in the desktop
+engine. Facebook handles browser sign-in. No password or cookie is copied.
+
+An existing draft/attachment, login/security check, changed or unrecognized
+Facebook controls, unavailable audience, or lost connection stops the task. Your
+local file is kept and the default Facebook audience is not changed. Once a Post
+click was attempted, a missing confirmation is **uncertain**, not a confirmed
+failure. Check Facebook before starting another export; the companion does not
+resubmit automatically and Activity removes its ordinary Retry button in that
+case. English desktop Facebook is the primary validation target; other layouts
+and languages may need adapter updates. The manual handoff and official advanced
+Page API remain available separately. See [the companion guide](facebook-extension/setup.html).
 
 ### Windows / PowerShell
 
@@ -194,6 +249,8 @@ python -m pip install -r requirements.txt pytest
 python -m pytest -q
 node tests/timeline_regressions.cjs
 node tests/extension_regressions.mjs
+node tests/facebook_companion_regressions.mjs
+node tests/facebook_page_regressions.mjs
 ```
 
 ## Zero-prerequisite terminal install
@@ -455,8 +512,9 @@ renewed after moving to production; existing account revocation and expiry rules
 still apply.
 
 Drive defaults to the limited **drive.file** scope and creates and remembers a
-**ClipHarbor Exports** folder on its first upload. To use an existing folder,
-enter its ID before connecting. That connection requests the broader **drive**
+**ClipHarbor Exports** folder on its first upload. Prefer **Choose Drive folder**
+to select an existing folder with limited access. Advanced manual folder IDs
+are still supported: enter an ID before connecting. That connection requests the broader **drive**
 scope through Google's consent screen so it can access the selected folder.
 Changing to another existing folder may require reconnecting. The selected folder
 is remembered. Drive upload success requires reading back the file size and parent.

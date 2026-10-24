@@ -22,6 +22,21 @@ this computer or the same connected Google Drive. Right-click "Download with
 ClipHarbor" uses your last extension settings. Downloads continue after closing
 the popup; Open app shows them in Activity. Google tokens stay in the app.
 
+Drive destinations: click Choose Drive folder in Download, Export, or the browser
+extension. Select a writable folder in Google's browser window. It is remembered
+and shared between those features; cancelling keeps your previous choice.
+
+Optional Facebook posting: the separate facebook-extension folder contains
+ClipHarbor Post. Read its setup page from the Start menu. It needs Chrome's
+powerful debugger permission to attach a local video without loading the whole
+file into extension memory. The normal downloader does not gain this permission.
+Connect it once from your own Facebook profile, then select the browser companion
+option in Export, enter your caption, choose an audience and post. Only me is the
+initial audience. Existing drafts and default audience settings are preserved.
+Login/security prompts or changed controls can stop it. Once a Post click was
+attempted, a missing confirmation is uncertain: check Facebook before retrying.
+This browser flow is experimental; manual preparation is still available.
+
 The editor has Media at the left, the full video preview in the center, Properties
 at the right, and the timeline across the bottom. Drag the three dividers to
 resize. The folder icon shows/hides Media (yellow means open). Properties follows

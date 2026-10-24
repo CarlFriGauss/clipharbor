@@ -8,7 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from mediaforge.browser_bridge import HOST_NAME, EXTENSION_ORIGIN
+from mediaforge.browser_bridge import HOST_NAME, EXTENSION_ORIGIN, FACEBOOK_ORIGIN
 from mediaforge.runtime import data_root
 
 
@@ -67,7 +67,7 @@ def main():
         launcher.write_text("#!/bin/sh\nexec " + shlex.quote(sys.executable) + " " + shlex.quote(str(ROOT / "browser_bridge.py")) + ' "$@"\n', encoding="utf-8")
         launcher.chmod(0o700)
     record = json.dumps({"name": HOST_NAME, "description": "ClipHarbor source browser bridge", "path": str(launcher),
-                         "type": "stdio", "allowed_origins": [EXTENSION_ORIGIN]}, indent=2)
+                         "type": "stdio", "allowed_origins": [EXTENSION_ORIGIN, FACEBOOK_ORIGIN]}, indent=2)
     manifest.write_text(record, encoding="utf-8")
     if os.name == "nt":
         import winreg

@@ -12,7 +12,7 @@
     <label for="url">Video or page link</label><input id="url" type="url" placeholder="https://…" required maxlength="16384">
     <div class="row"><div><label for="format">Format</label><select id="format"><option value="mp4">MP4 · video</option><option value="original">Original source quality</option><option value="mkv">MKV</option><option value="webm">WebM</option><option value="mov">MOV</option><option value="mp3">MP3 · audio</option><option value="m4a">M4A · audio</option><option value="wav">WAV · audio</option></select></div><div><label for="destination">Save to</label><select id="destination"><option value="local">This computer</option><option value="drive">Google Drive</option></select></div></div>
     <div id="folderRow"><span id="folder"></span><button type="button" id="chooseFolder" class="quiet">Change folder…</button></div>
-    <div id="driveRow" hidden><img src="drive.svg" alt="Google Drive" width="18" height="18"><span id="driveStatus"></span><button id="connectDrive" type="button" class="quiet" hidden>Connect in ClipHarbor ↗</button></div>
+    <div id="driveRow" hidden><img src="drive.svg" alt="Google Drive" width="18" height="18"><span id="driveStatus"></span><button id="chooseDriveFolder" type="button" class="quiet">Choose folder…</button><button id="connectDrive" type="button" class="quiet" hidden>Connect in ClipHarbor ↗</button></div>
     <label id="compatibility"><input id="xCompatible" type="checkbox"> Make MP4 compatible with X</label>
     <button id="download" class="primary" disabled>Download</button>
   </form>
