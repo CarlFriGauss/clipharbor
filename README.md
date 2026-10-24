@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.0/ClipHarbor-Setup-0.8.0-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.1/ClipHarbor-Setup-0.8.0-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -32,7 +32,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.0/ClipHarbor-Setup-0.8.0-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.1/ClipHarbor-Setup-0.8.0-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -41,8 +41,9 @@ then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
 
-Version **0.8.0** adds visual Google Drive destination selection and an optional
-Facebook posting companion. It also includes the [browser extension](#browser-extension) for
+Version **0.8.1** adds visual Google Drive destination selection and an optional
+Facebook posting companion, with protection against repeated export clicks and
+repeated retries creating duplicate posts. It also includes the [browser extension](#browser-extension) for
 Chrome and Edge, with background downloads to this computer or Google Drive.
 The installer registers its small local bridge and includes the extension files.
 Loading the extension in your browser is a one-time manual step.
@@ -58,7 +59,7 @@ YouTube requires its own Google upload permission. X and Facebook Page publishin
 require the platform tokens described below. Personal-profile sharing needs no
 Facebook token in ClipHarbor. Each installer user signs in to their own account.
 Advanced source builds need the publisher registration described below.
-[Release notes](packaging/RELEASE-0.8.0.md)
+[Release notes](packaging/RELEASE-0.8.1.md)
 explain the supported destinations and validation. The earlier Tcl/Tk startup
 fix remains included; install over the old version without deleting projects.
 
@@ -74,7 +75,7 @@ Windows security. Download only from this repository's releases. See
 2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 3. Enable **Developer mode**, click **Load unpacked**, and select
    `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension` (inside your installation).
-   Alternatively, download [ClipHarbor-Extension-0.8.0.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.0/ClipHarbor-Extension-0.8.0.zip),
+   Alternatively, download [ClipHarbor-Extension-0.8.1.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.8.1/ClipHarbor-Extension-0.8.1.zip),
    extract it to a permanent folder, and select that folder.
 4. Pin ClipHarbor to your browser toolbar. Open a video page, click ClipHarbor,
    choose the link, format and **This computer** or **Google Drive**, and download.
@@ -141,7 +142,7 @@ Facebook host or debugger permission.
 
 1. In Chrome/Edge’s Extensions page load the installed
    `%LOCALAPPDATA%\Programs\ClipHarbor\facebook-extension` folder, or extract
-   `ClipHarbor-Facebook-Companion-0.8.0.zip` from the release and load that folder.
+   `ClipHarbor-Facebook-Companion-0.8.1.zip` from the release and load that folder.
 2. Review its stronger **debugger** permission. Chrome does not allow this
    permission to be requested optionally. Although this companion’s code attaches
    only to the Facebook tab it creates, the browser permission itself is powerful
@@ -599,8 +600,13 @@ Drive download, shared connection after restart, and automatic Google token
 renewal. The uploaded file's size and folder were verified, and the direct
 download removed its temporary local files. YouTube, X, and Facebook Page publishing
 have adapter tests. The manual Facebook handoff was tested with a generated
-three-second video and a successful **Only me** post. The new Drive folder picker
-and automatic Facebook companion still need live account validation. Direct Facebook
+three-second video and a successful **Only me** post. The Drive folder picker was
+also verified with a real Google selection, followed by an export and a direct
+download into that selected folder. Both uploads were verified, and temporary
+download media was removed. Automatic Facebook posting passed a real Chrome
+test: the companion attached the video, entered its caption, verified **Only me**,
+clicked Post, and observed Facebook's confirmation. Existing-draft protection was
+also exercised. Browser variants can still require adapter updates. Direct Facebook
 Page API publishing and X still need real-account validation. YouTube sign-in
 and upload permission were verified; its live upload test is deferred while the
 test account has a temporary posting restriction.

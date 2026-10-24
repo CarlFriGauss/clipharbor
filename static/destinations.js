@@ -1,5 +1,8 @@
 /* Optional export destinations: no third-party scripts or SDKs. */
 let exportSource = null;
+let exportRequestId = "";
+let exportSubmitting = false;
+const retrySubmissions = new Set();
 let exportDestination = localStorage.getItem("clipharbor-export-destination") || "local";
 let connectionStatus = {};
 let facebookBrowserStatus = {};
@@ -54,9 +57,11 @@ function updateDestination() {
     $("#startExport").disabled = !facebookBrowserStatus.ready;
     $("#exportStorageNote").textContent = "A local copy is kept. Posting uses your connected browser profile and the audience selected above.";
   }
+  $("#startExport").disabled = $("#startExport").disabled || exportSubmitting;
 }
 async function showExport(result=null) {
   exportSource=result;
+  exportRequestId=crypto.randomUUID().replaceAll("-", "");
   $("#exportName").value=result?projectNameFromMedia(result.media.name):state.currentProjectName==="Untitled project"?"ClipHarbor export":state.currentProjectName;
   $("#exportPublish").checked=false;$("#deliveryTitle").value="";$("#exportDescription").value="";$("#youtubeVisibility").value="private";
   $("#facebookAudience").value="only_me";
@@ -72,14 +77,16 @@ function deliveryMarkup(job) {
   if(job.result?.browserPostingUncertain)return '<a class="button secondary" href="https://www.facebook.com/me" target="_blank" rel="noopener noreferrer">Check Facebook before trying again</a>';
   const d=job.result?.delivery;
   if(d)return '<a class="button secondary" href="'+escapeHtml(d.url)+'" target="_blank" rel="noopener noreferrer">Open in '+escapeHtml(destinationNames[d.provider])+'</a><span class="job-status">'+escapeHtml(d.visibility)+'</span>';
-  if(job.status==="failed"&&job.result?.path&&job.deliveryRequest)return '<button class="button secondary" data-retry-upload="'+escapeHtml(job.id)+'">Retry upload</button>';
+  if(job.status==="failed"&&job.result?.path&&job.deliveryRequest&&!job.retryJobId)return '<button class="button secondary" data-retry-upload="'+escapeHtml(job.id)+'"'+(retrySubmissions.has(job.id)?' disabled':'')+'>Retry upload</button>';
   return "";
 }
 async function retryDelivery(id) {
-  const original=state.jobs.get(id);if(!original?.deliveryRequest)return;
+  const original=state.jobs.get(id);if(!original?.deliveryRequest||original.retryJobId||retrySubmissions.has(id)||original.result?.browserPostingUncertain)return;
   if(original.result?.cloudDownloadId)return retryCloudDownload(original.result.cloudDownloadId);
-  try{const job=await api("/api/uploads",{method:"POST",body:JSON.stringify({token:original.result.token,...original.deliveryRequest})});job.deliveryRequest=original.deliveryRequest;trackJob(job);}
+  retrySubmissions.add(id);updateJobs();
+  try{const job=await api("/api/uploads",{method:"POST",body:JSON.stringify({token:original.result.token,...original.deliveryRequest,retryOf:id})});const parent=state.jobs.get(id)||original;parent.retryJobId=job.id;state.jobs.set(id,parent);job.deliveryRequest=original.deliveryRequest;trackJob(job);}
   catch(error){toast("Upload could not start",error.message,true);}
+  finally{retrySubmissions.delete(id);updateJobs();}
 }
 const googleSignIns = new Set();
 async function chooseDriveDestination() {

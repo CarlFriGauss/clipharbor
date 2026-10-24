@@ -98,9 +98,11 @@ def main():
                             "sine=frequency=500:duration=1", str(media)], env=env, check=True)
             asset = api("/api/assets/register", {"assets": [{"id": "test", "path": str(media)}]})["assets"][0]
             assert api("/api/waveform/"+asset["token"])["samples"]
-            job = api("/api/renders", {"project": {"assets": [{"id": "test", "path": str(media), "audio": True}],
+            render_request = {"project": {"assets": [{"id": "test", "path": str(media), "audio": True}],
                           "clips": [{"assetId": "test", "kind": "audio", "in": .1, "out": .8, "start": 0, "speed": 1}]},
-                          "outputDirectory": str(root), "filename": "test-cut", "outputFormat": "mp3"})
+                          "outputDirectory": str(root), "filename": "test-cut", "outputFormat": "mp3", "requestId": "a" * 32}
+            job = api("/api/renders", render_request)
+            assert api("/api/renders", render_request)["id"] == job["id"], "Repeated export must reuse its job"
             for _ in range(100):
                 status = api("/api/jobs/"+job["id"])
                 if status["status"] not in ("queued", "running"):
@@ -162,7 +164,7 @@ def main():
                               "gui_runtime": gui_runtime,
                               "checks": ["isolated PATH", "authenticated launch", "publisher Google registration",
                                          "no bundled user account", "destination logos", "single instance", "save/open project",
-                                         "first-run media tools", "waveform", "MP3 export", "inspect/download", "bundled Node", "native extension download",
+                                         "first-run media tools", "waveform", "MP3 export", "export request deduplication", "inspect/download", "bundled Node", "native extension download",
                                          "extension progress", "shared Activity", "cold engine startup", "clean quit"]}))
         finally:
             if process.poll() is None:

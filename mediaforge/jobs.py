@@ -20,9 +20,10 @@ class Job:
     log: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
+    retry_job_id: str | None = None
 
     def public(self) -> dict[str, Any]:
-        return {
+        value = {
             "id": self.id,
             "kind": self.kind,
             "status": self.status,
@@ -34,6 +35,9 @@ class Job:
             "createdAt": self.created_at,
             "updatedAt": self.updated_at,
         }
+        if self.retry_job_id:
+            value["retryJobId"] = self.retry_job_id
+        return value
 
 
 class JobContext:
@@ -53,6 +57,30 @@ class JobManager:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.RLock()
         self._closing = False
+        self._submissions: dict[str, str] = {}
+
+    def start_once(self, key: str, kind: str, target: Callable[..., dict[str, Any]], **kwargs: Any) -> Job:
+        """A repeated request for one explicit export returns its existing job."""
+        with self._lock:
+            existing = self._submissions.get(key)
+            if existing:
+                return self._jobs[existing]
+            job = self.start(kind, target, **kwargs)
+            self._submissions[key] = job.id
+            return job
+
+    def start_retry(self, source_id: str, kind: str, target: Callable[..., dict[str, Any]], **kwargs: Any) -> Job:
+        with self._lock:
+            source = self._jobs.get(source_id)
+            if not source or source.status != "failed" or source.kind not in {"upload", "share", "render"}:
+                raise ValueError("Choose a failed export to retry.")
+            if (source.result or {}).get("browserPostingUncertain"):
+                raise ValueError("Check Facebook before starting another export; this post may already exist.")
+            if source.retry_job_id:
+                return self._jobs[source.retry_job_id]
+            job = self.start(kind, target, **kwargs)
+            source.retry_job_id = job.id
+            return job
 
     def start(self, kind: str, target: Callable[..., dict[str, Any]], *args: Any, **kwargs: Any) -> Job:
         job = Job(id=uuid.uuid4().hex, kind=kind)

@@ -12,7 +12,7 @@ browser cookies, browsing history permission, or access to all websites is used.
 
 The Windows installer includes this folder at
 `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension`. Alternatively extract
-`ClipHarbor-Extension-0.8.0.zip` from the GitHub release and load its extracted
+`ClipHarbor-Extension-0.8.1.zip` from the GitHub release and load its extracted
 folder. Keep the folder in place. This version is not in either browser's store.
 No browser policies are changed and extensions are never silently force-installed.
 
