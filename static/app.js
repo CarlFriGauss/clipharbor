@@ -5,7 +5,7 @@ const MIN_PX_PER_SECOND = .02;
 const MAX_PX_PER_SECOND = 300;
 
 const state = {
-  inspected: null, assets: [], clips: [], selectedAssetId: null,
+  inspected: null, inspectedUrl: null, inspectedCookie: null, assets: [], clips: [], selectedAssetId: null,
   selectedClipIds: new Set(), primaryClipId: null, selectedLayerKeys: new Set(), previewClipId: null,
   playhead: 0, pxPerSecond: 44, videoLayerCount: 1, audioLayerCount: 1, trackState: {},
   clipboard: [], history: [], future: [], snapEnabled: true, showEmptyTracks: false,
@@ -49,8 +49,32 @@ function setView(name) {
 async function choose(kind) { return api(`/api/dialog/${kind}`, {method: "POST", body: "{}"}); }
 function renderAudioTracks(info = {}) {
   const tracks=info.audioTracks||[],select=$("#audioTrackSelect");
-  select.innerHTML=`<option value="">Automatic / source default</option>`+tracks.map(track=>`<option value="${escapeHtml(track.formatId)}" data-label="${escapeHtml(track.label)}">${escapeHtml(track.label)} [${escapeHtml(track.language)}]${track.original?" · original":track.dubbed?" · automatic dub":track.default?" · default":""}</option>`).join("");
-  $("#audioTrackField").classList.toggle("hidden",tracks.length<2);const preferred=tracks.find(track=>track.original)||tracks.find(track=>track.default);if(preferred)select.value=preferred.formatId;
+  select.innerHTML=`<option value="">Automatic / source default</option>`+tracks.map(track=>`<option value="${escapeHtml(track.formatId)}" data-label="${escapeHtml(track.label)}">${escapeHtml(sourceLanguageLabel(track))} [${escapeHtml(track.language)}]${track.original?" · original":track.dubbed?" · dubbed":track.default?" · default":""}</option>`).join("");
+  $("#audioTrackField").classList.toggle("hidden",tracks.length<2);const preferred=tracks.find(track=>track.original)||tracks.find(track=>track.default);if(preferred&&tracks.length>1)select.value=preferred.formatId;
+}
+function sourceLanguageLabel(track) {
+  if (track.label && track.label !== track.language) return track.label;
+  try { return new Intl.DisplayNames([navigator.language || "en"], {type:"language"}).of(track.language.replaceAll("_","-")) || track.language; }
+  catch { return track.language; }
+}
+function updateSubtitleFormat() {
+  const audioOnly=["mp3","m4a","wav"].includes($("#formatSelect").value);
+  $("#subtitleTrackSelect").disabled=audioOnly;
+  $("#subtitleTrackHelp").textContent=audioOnly?"Subtitles require a video format.":"Saved inside the video as switchable subtitles. Use a player with subtitle support.";
+}
+function renderSourceTracks(info = {}) {
+  renderAudioTracks(info);
+  const tracks=info.subtitleTracks||[], select=$("#subtitleTrackSelect");
+  select.innerHTML=`<option value="">None</option>`+tracks.map((track,index)=>`<option value="${index}">${escapeHtml(sourceLanguageLabel(track))} [${escapeHtml(track.language)}] · ${track.translated?"auto-translated":track.automatic?"automatic captions":"creator subtitles"}</option>`).join("");
+  select.value="";
+  $("#subtitleTrackField").classList.toggle("hidden",!tracks.length);
+  const facebook=/facebook/i.test(info.site||"");
+  $("#sourceTrackNotice").classList.toggle("hidden",!facebook);
+  $("#sourceTrackNotice").textContent=facebook?"Only the languages Facebook exposes for download are listed. Some translations in Facebook’s player may be unavailable here.":"";
+  updateSubtitleFormat();
+}
+function clearSourceTracks() {
+  state.inspected=null;state.inspectedUrl=null;state.inspectedCookie=null;renderSourceTracks();
 }
 function projectNameFromMedia(name) { return String(name || "Untitled project").replace(/\.[^.]+$/, "").trim() || "Untitled project"; }
 function renderProjectHeader() {
@@ -62,19 +86,26 @@ function markProjectDirty() { state.projectDirty = true; renderProjectHeader(); 
 
 async function inspectSource() {
   const url = $("#urlInput").value.trim(); if (!url) return toast("A URL is needed", "Paste a public media link first.", true);
-  const button = $("#inspectButton"); button.disabled = true; button.textContent = "Inspecting…";
+  const button = $("#inspectButton"); if(button.disabled)return; button.disabled = true; button.textContent = "Inspecting…";
+  const cookieFile=$("#cookiePath").value.trim();clearSourceTracks();
   try {
-    const info = await api("/api/inspect-url", {method: "POST", body: JSON.stringify({url, cookieFile: $("#cookiePath").value.trim()})}); state.inspected = info;
-    renderAudioTracks(info);
+    const info = await api("/api/inspect-url", {method: "POST", body: JSON.stringify({url, cookieFile})});
+    if(url!==$("#urlInput").value.trim()||cookieFile!==$("#cookiePath").value.trim())return;
+    state.inspected = info;state.inspectedUrl=url;state.inspectedCookie=cookieFile;
+    renderSourceTracks(info);
     const thumb = info.thumbnail ? `<img src="${escapeHtml(info.thumbnail)}" alt="">` : `<div class="preview-placeholder"><span>▶</span></div>`;
     $("#sourcePreview").classList.remove("empty");
     $("#sourcePreview").innerHTML = `<div class="source-result">${thumb}<div class="source-result-info"><h3>${escapeHtml(info.title)}</h3><p>${escapeHtml(info.uploader || "Unknown creator")} · ${escapeHtml(info.site)}</p><p>${formatTime(info.duration)} · ${info.formatCount} available streams</p><div class="meta-chips"><span class="meta-chip">Best available</span>${info.maxHeight ? `<span class="meta-chip">Up to ${info.maxHeight}p</span>` : ""}${info.hasAudio ? `<span class="meta-chip">Audio</span>` : ""}</div></div></div>`;
-  } catch (error) { state.inspected=null;renderAudioTracks();toast("Could not inspect this source", error.message, true); }
+  } catch (error) { clearSourceTracks();toast("Could not inspect this source", error.message, true); }
   finally { button.disabled = false; button.textContent = "Inspect"; }
 }
 async function startDownload() {
+  if(state.inspectedUrl!==$("#urlInput").value.trim()||state.inspectedCookie!==$("#cookiePath").value.trim())clearSourceTracks();
   const audioOption=$("#audioTrackSelect").selectedOptions[0];
   const payload = {url: $("#urlInput").value.trim(), outputDirectory: $("#outputPath").value.trim(), outputFormat: $("#formatSelect").value, xCompatible: $("#formatSelect").value === "mp4" && $("#xCompatible").checked, audioFormatId:$("#audioTrackSelect").value||null,audioTrackLabel:$("#audioTrackSelect").value?(audioOption?.dataset.label||audioOption?.textContent||null):null,cookieFile: $("#cookiePath").value.trim()};
+  const subtitleValue=$("#subtitleTrackSelect").value;
+  const subtitle=!$("#subtitleTrackSelect").disabled&&subtitleValue!==""?state.inspected?.subtitleTracks?.[Number(subtitleValue)]:null;
+  payload.subtitleLanguage=subtitle?.language||null;payload.subtitleSource=subtitle?.source||"manual";
   Object.assign(payload, downloadDeliveryPayload());
   if (!payload.url || (payload.destination === "local" && !payload.outputDirectory)) return toast("Missing download details", "Enter a URL and choose an output folder for local downloads.", true);
   if(payload.destination === "drive" && !connectionStatus.drive?.connected) return toast("Connect Google Drive", "Connect your account before starting a Drive download.", true);
@@ -112,6 +143,7 @@ function completeJob(job) {
   $("#completeTitle").textContent = facebookProfile ? "Video ready for Facebook" : cloudDownload ? "Saved to Google Drive" : finalMp4 ? "Final MP4 ready" : isDownload ? "Download complete" : job.result.delivery ? "Export complete" : job.kind === "upload" ? "Upload complete" : "Render complete";
   let note = finalMp4 ? `${media.name} · ${formatBytes(media.size)} · Ready to use. No editing or additional export is required.` : `${media.name} · ${formatBytes(media.size)}`;
   if(job.result.audioTrack)note+=` · Audio: ${job.result.audioTrack}.`;
+  if(job.result.subtitleTrack)note+=` · Subtitles: ${sourceLanguageLabel(job.result.subtitleTrack)} [${job.result.subtitleTrack.language}].`;
   if (isDownload && job.result.xCompatible) note += job.result.xConversionSkipped ? " · Extra X conversion was unnecessary." : " · Verified for X.";
   if (!isDownload && job.result.xCompatible) note += " · Verified for X upload.";
   if(job.result.delivery) note += " · " + destinationNames[job.result.delivery.provider] + " · " + job.result.delivery.visibility;
@@ -657,9 +689,9 @@ function handleKeyboard(event) {
 }
 
 function wireEvents() {
-  $$(".nav-tab").forEach(tab=>tab.addEventListener("click",()=>setView(tab.dataset.view)));$("#inspectButton").addEventListener("click",inspectSource);$("#urlInput").addEventListener("keydown",event=>{if(event.key==="Enter")inspectSource();});$("#urlInput").addEventListener("input",()=>{if(state.inspected){state.inspected=null;renderAudioTracks();}});
-  $("#formatSelect").addEventListener("change",event=>$("#xOption").classList.toggle("hidden",event.target.value!=="mp4"));
-  $("#browseOutput").addEventListener("click",async()=>{const data=await choose("folder");if(data.paths[0])$("#outputPath").value=data.paths[0];});$("#browseExport").addEventListener("click",async()=>{const data=await choose("folder");if(data.paths[0])$("#exportPath").value=data.paths[0];});$("#browseCookies").addEventListener("click",async()=>{const data=await choose("cookies");if(data.paths[0])$("#cookiePath").value=data.paths[0];});
+  $$(".nav-tab").forEach(tab=>tab.addEventListener("click",()=>setView(tab.dataset.view)));$("#inspectButton").addEventListener("click",inspectSource);$("#urlInput").addEventListener("keydown",event=>{if(event.key==="Enter")inspectSource();});$("#urlInput").addEventListener("input",clearSourceTracks);$("#cookiePath").addEventListener("input",clearSourceTracks);
+  $("#formatSelect").addEventListener("change",event=>{$("#xOption").classList.toggle("hidden",event.target.value!=="mp4");updateSubtitleFormat();});
+  $("#browseOutput").addEventListener("click",async()=>{const data=await choose("folder");if(data.paths[0])$("#outputPath").value=data.paths[0];});$("#browseExport").addEventListener("click",async()=>{const data=await choose("folder");if(data.paths[0])$("#exportPath").value=data.paths[0];});$("#browseCookies").addEventListener("click",async()=>{const data=await choose("cookies");if(data.paths[0]){$("#cookiePath").value=data.paths[0];clearSourceTracks();}});
   $("#downloadButton").addEventListener("click",startDownload);$("#openMedia").addEventListener("click",openMedia);$("#assetList").addEventListener("click",event=>{const remove=event.target.closest("[data-remove-asset]");if(remove){event.stopPropagation();return removeAsset(remove.dataset.removeAsset);}const item=event.target.closest("[data-asset-id]");if(item)previewAsset(findAsset(item.dataset.assetId));else if(event.target.closest("#emptyAssetButton"))openMedia();});
   $("#addVideoClip").addEventListener("click",()=>addClip("video"));$("#addAudioClip").addEventListener("click",()=>addClip("audio"));$("#addVideoLayer").addEventListener("click",()=>addLayer("video"));$("#addAudioLayer").addEventListener("click",()=>addLayer("audio"));
   $("#cutAtPlayer").addEventListener("click",cutAtPlayerPosition);$("#cutSelection").addEventListener("click",cutAtPlayerPosition);$("#copySelection").addEventListener("click",copySelection);$("#copySelectionInspector").addEventListener("click",copySelection);$("#pasteSelection").addEventListener("click",pasteSelection);

@@ -9,9 +9,12 @@ assert.equal(contextUrl({pageUrl: "https://example.com/feed", linkUrl: "https://
 let listener;
 const state = {};
 let nextId = 0;
+const nativeRequests=[];
 globalThis.chrome = {
   runtime: {id: "extension", sendNativeMessage: async (host, message) => {
     assert.equal(host, "com.clipharbor.downloader");
+    nativeRequests.push(message);
+    if(message.action === "inspect") return {ok:true,info:{title:"Source",subtitleTracks:[{language:"fr",source:"automatic"}]}};
     if (message.action === "download") return {ok: true, job: {id: String(++nextId).padStart(32, "0"), status: "queued", progress: 0}};
     if (message.action === "job") return {ok: true, job: {id: message.jobId, status: "completed", progress: 100, name: "download.mp4"}};
     return {ok: true};
@@ -34,4 +37,8 @@ assert.equal(state.downloads.length, 2, "Concurrent popup/right-click/poll updat
 assert.ok(state.downloads.every(job => job.status === "completed"));
 assert.equal(nextId, 2, "Polling must not resubmit downloads");
 assert.equal((await send({action: "unknown"})).ok, false);
+assert.equal((await send({action:"inspect",url:"https://example.com/video"})).info.subtitleTracks[0].language,"fr");
+await send({action:"download",url:"https://example.com/video",destination:"local",outputFormat:"mp4",audioFormatId:"audio-es",subtitleLanguage:"fr",subtitleSource:"automatic"});
+const trackRequest=nativeRequests.findLast(item=>item.action==="download");
+assert.equal(trackRequest.audioFormatId,"audio-es");assert.equal(trackRequest.subtitleLanguage,"fr");assert.equal(trackRequest.subtitleSource,"automatic");
 console.log("Extension URL, sender isolation, concurrent download tracking, and no-retry regressions passed.");

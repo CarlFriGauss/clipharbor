@@ -28,6 +28,7 @@ FACEBOOK_EXTENSION_ID = "ngiefopmfphpgkoipgnipbajpmjcimag"
 FACEBOOK_ORIGIN = f"chrome-extension://{FACEBOOK_EXTENSION_ID}/"
 FACEBOOK_ACTIONS = {"browserRegister", "browserPoll", "browserReport", "browserStatus"}
 MAX_MESSAGE = 64 * 1024
+MAX_RESPONSE = 1024 * 1024  # Chrome permits 1 MiB from a native host.
 FORMATS = {"mp4", "original", "mkv", "webm", "mov", "mp3", "m4a", "wav"}
 
 
@@ -163,13 +164,22 @@ def handle(message):
     if not isinstance(message, dict) or message.get("protocol") != 1:
         raise BridgeError("Update the ClipHarbor extension and desktop app together.")
     action = message.get("action")
-    if action not in {"status", "download", "job", "open", "chooseFolder", "chooseDriveFolder", "reveal", *FACEBOOK_ACTIONS}:
+    if action not in {"status", "inspect", "download", "job", "open", "chooseFolder", "chooseDriveFolder", "reveal", *FACEBOOK_ACTIONS}:
         raise BridgeError("Unknown extension action.")
     # Validate before starting a process or touching a website.
-    if action == "download":
+    if action in {"inspect", "download"}:
         url = media_url(message.get("url"))
+    if action == "download":
         if message.get("destination") not in {"local", "drive"} or message.get("outputFormat") not in FORMATS:
             raise BridgeError("Choose a supported format and destination.")
+        # Keep the messaging host free of downloader/FFmpeg imports.
+        audio, subtitle, source = message.get("audioFormatId"), message.get("subtitleLanguage"), message.get("subtitleSource", "manual")
+        if (audio is not None and (not isinstance(audio, str) or not re.fullmatch(r"[A-Za-z0-9._+-]+", audio))
+                or not isinstance(source, str) or source not in {"manual", "automatic"}
+                or subtitle is not None and (not isinstance(subtitle, str)
+                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", subtitle)
+                    or subtitle in {"all", "live_chat"} or message["outputFormat"] in {"mp3", "m4a", "wav"})):
+            raise BridgeError("Choose valid audio and subtitle tracks from Inspect.")
     if action in {"job", "reveal"}:
         identifier = job_id(message.get("jobId"))
     if action in {"browserPoll", "browserReport"}:
@@ -182,20 +192,24 @@ def handle(message):
     else:
         client, health = ensure_desktop()
     try:
-        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 8, 0)
+        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 9, 0)
     except (KeyError, ValueError, AttributeError):
         compatible = False
     if not compatible:
-        raise BridgeError("Quit the older ClipHarbor app, install version 0.8.0 or newer, then try again.")
+        raise BridgeError("Quit the older ClipHarbor app, install version 0.9.0 or newer, then try again.")
     if action == "status":
         drive = client.api("/api/connections")["drive"]
         return {"version": health["version"], "settings": settings(),
                 "drive": {key: drive[key] for key in ("connected", "needsReconnect", "folderName")}}
+    if action == "inspect":
+        return {"info": client.api("/api/inspect-url", {"url": url}, timeout=180)}
     if action == "download":
         prefs = settings() | {"destination": message["destination"], "outputFormat": message["outputFormat"],
                               "xCompatible": message.get("xCompatible") is True}
         job = client.api("/api/downloads", {"url": url, **prefs,
-            "deliveryOptions": {}, "xCompatible": prefs["outputFormat"] == "mp4" and prefs["xCompatible"]})
+            "deliveryOptions": {}, "xCompatible": prefs["outputFormat"] == "mp4" and prefs["xCompatible"],
+            "audioFormatId": message.get("audioFormatId"), "audioTrackLabel": str(message.get("audioTrackLabel") or "")[:200],
+            "subtitleLanguage": message.get("subtitleLanguage"), "subtitleSource": message.get("subtitleSource", "manual")})
         save_settings(prefs)
         return {"job": public_job(job)}
     if action == "job":
@@ -256,7 +270,7 @@ def read_message(stream):
 
 def write_message(stream, value):
     body = json.dumps(value, ensure_ascii=False).encode("utf-8")
-    if len(body) > MAX_MESSAGE:
+    if len(body) > MAX_RESPONSE:
         body = json.dumps({"ok": False, "error": "Response is too large. Open Activity in ClipHarbor."}).encode()
     stream.write(struct.pack("=I", len(body)) + body)
     stream.flush()

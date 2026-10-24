@@ -48,6 +48,16 @@ def test_native_protocol_roundtrip_and_partial_reads():
             bridge.read_message(io.BytesIO(malformed))
 
 
+def test_native_response_can_carry_a_full_youtube_translation_catalogue():
+    payload = {"ok": True, "info": {"subtitleTracks": [{"language": f"lang-{i}", "source": "automatic", "label": "A translated caption language" * 2} for i in range(700)]}}
+    stream = io.BytesIO()
+    bridge.write_message(stream, payload)
+    data = stream.getvalue()
+    assert len(data) > bridge.MAX_MESSAGE
+    assert json.loads(data[4:])["info"]["subtitleTracks"] == payload["info"]["subtitleTracks"]
+    assert struct.unpack("=I", data[:4])[0] == len(data) - 4
+
+
 def test_unknown_origin_cannot_start_engine(tmp_path):
     import os
     result = subprocess.run([sys.executable, str(ROOT / "browser_bridge.py"), "chrome-extension://other/"],
@@ -81,6 +91,34 @@ def test_bridge_submits_only_supported_download_fields(tmp_path, monkeypatch):
     assert payload["deliveryOptions"] == {} and payload["xCompatible"] is False
     assert "cookieFile" not in payload and "log" not in response["job"]
     assert bridge.settings()["destination"] == "drive"
+
+
+def test_bridge_inspection_and_track_selection_share_the_desktop_backend(tmp_path, monkeypatch):
+    monkeypatch.setattr(bridge, "data_root", lambda: tmp_path)
+    calls = []
+    class Client:
+        def api(self, path, payload=None, **kwargs):
+            calls.append((path, payload))
+            if path == "/api/inspect-url":
+                return {"title": "Video", "audioTracks": [], "subtitleTracks": [{"language": "fr", "source": "automatic"}]}
+            return {"id": "b" * 32, "status": "queued"}
+    monkeypatch.setattr(bridge, "ensure_desktop", lambda: (Client(), {"version": bridge.VERSION}))
+    info = bridge.handle({"protocol": 1, "action": "inspect", "url": "https://example.com/video", "cookieFile": "private"})
+    assert info["info"]["subtitleTracks"][0]["language"] == "fr"
+    assert calls[0] == ("/api/inspect-url", {"url": "https://example.com/video"})
+    bridge.handle({"protocol": 1, "action": "download", "url": "https://example.com/video", "destination": "local", "outputFormat": "mp4",
+                   "audioFormatId": "audio-es", "subtitleLanguage": "fr", "subtitleSource": "automatic"})
+    payload = calls[-1][1]
+    assert payload["audioFormatId"] == "audio-es" and payload["subtitleLanguage"] == "fr" and payload["subtitleSource"] == "automatic"
+    assert "subtitleLanguage" not in bridge.settings(), "Track choices belong to one source, never the next URL"
+
+
+@pytest.mark.parametrize("fields", [{"audioFormatId": "best/all"}, {"subtitleLanguage": ".*"},
+    {"subtitleLanguage": "all"}, {"subtitleSource": {}}, {"subtitleLanguage": ["fr"]}])
+def test_bridge_invalid_tracks_cannot_start_engine(monkeypatch, fields):
+    monkeypatch.setattr(bridge, "ensure_desktop", lambda: pytest.fail("Invalid tracks must not start the app"))
+    with pytest.raises(bridge.BridgeError, match="valid audio"):
+        bridge.handle({"protocol": 1, "action": "download", "url": "https://example.com/video", "destination": "local", "outputFormat": "mp4", **fields})
 
 
 def test_public_job_omits_local_session_and_media_tokens():

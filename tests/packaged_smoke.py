@@ -137,6 +137,25 @@ def main():
                 assert browser_result["status"] == "completed", browser_result
                 assert Path(browser_result["path"]).is_file()
                 assert browser_job["id"] in [job["id"] for job in api("/api/jobs")["jobs"]]
+                # Caption discovery and muxing must work in the frozen build,
+                # including the minimal native host, without external websites.
+                subprocess.run([str(tools/"ffmpeg.exe"), "-v", "error", "-f", "lavfi", "-i",
+                    "testsrc2=size=160x90:rate=10:duration=1", "-f", "lavfi", "-i", "sine=duration=1",
+                    "-shortest", "-c:v", "libx264", "-c:a", "aac", str(root/"caption-source.mp4")], env=env, check=True, capture_output=True)
+                (root/"fr.vtt").write_text("WEBVTT\n\n00:00.000 --> 00:00.900\nBonjour de ClipHarbor\n", encoding="utf-8")
+                (root/"caption.html").write_text('<title>Caption smoke</title><video src="caption-source.mp4"><track kind="subtitles" srclang="fr" label="French" src="fr.vtt"></video>', encoding="utf-8")
+                caption_url=f"http://127.0.0.1:{source_server.server_port}/caption.html"
+                caption_info=extension("inspect", url=caption_url)["info"]
+                assert caption_info["subtitleTracks"][0]["language"] == "fr"
+                caption_job=extension("download", url=caption_url, destination="local", outputFormat="mp4", subtitleLanguage="fr", subtitleSource="manual")["job"]
+                for _ in range(200):
+                    captioned=api("/api/jobs/"+caption_job["id"])
+                    if captioned["status"] not in ("queued", "running"):
+                        break
+                    time.sleep(.1)
+                assert captioned["status"] == "completed", captioned
+                assert captioned["result"]["subtitleTrack"]["language"] == "fr"
+                assert captioned["result"]["media"]["subtitles"][0]["codec"] == "mov_text"
             finally:
                 source_server.shutdown()
                 source_server.server_close()
@@ -165,7 +184,7 @@ def main():
                               "checks": ["isolated PATH", "authenticated launch", "publisher Google registration",
                                          "no bundled user account", "destination logos", "single instance", "save/open project",
                                          "first-run media tools", "waveform", "MP3 export", "export request deduplication", "inspect/download", "bundled Node", "native extension download",
-                                         "extension progress", "shared Activity", "cold engine startup", "clean quit"]}))
+                                         "extension progress", "shared Activity", "caption inspection via native host", "embedded subtitle download", "cold engine startup", "clean quit"]}))
         finally:
             if process.poll() is None:
                 process.terminate()

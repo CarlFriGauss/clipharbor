@@ -3,7 +3,7 @@ import {HOST, ACTIVE, cleanUrl, contextUrl} from "./shared.js";
 async function native(action, fields = {}) {
   let response;
   try { response = await chrome.runtime.sendNativeMessage(HOST, {protocol: 1, action, ...fields}); }
-  catch { throw new Error("ClipHarbor's browser bridge is unavailable. Install ClipHarbor 0.7.0 or newer, then try again. Source users: register the bridge first."); }
+  catch { throw new Error("ClipHarbor's browser bridge is unavailable. Install ClipHarbor 0.9.0 or newer, then try again. Source users: register the bridge first."); }
   if (!response?.ok) throw new Error(response?.error || "ClipHarbor could not complete the request.");
   return response;
 }
@@ -30,7 +30,9 @@ function serial(task) {
 
 async function startDownload(fields) {
   if (!cleanUrl(fields.url)) throw new Error("Open a video page or enter a complete http:// or https:// link.");
-  const {job} = await native("download", {url: fields.url, destination: fields.destination, outputFormat: fields.outputFormat, xCompatible: fields.xCompatible === true});
+  const {job} = await native("download", {url: fields.url, destination: fields.destination, outputFormat: fields.outputFormat, xCompatible: fields.xCompatible === true,
+    audioFormatId:fields.audioFormatId||null,audioTrackLabel:fields.audioTrackLabel||null,
+    subtitleLanguage:fields.subtitleLanguage||null,subtitleSource:fields.subtitleSource||"manual"});
   const {downloads = []} = await chrome.storage.local.get("downloads");
   // Never evict an active download from background tracking.
   const retained = downloads.filter(item => ACTIVE.has(item.status));
@@ -76,6 +78,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   serial(async () => {
     switch (message?.action) {
       case "status": return native("status");
+      case "inspect": return native("inspect", {url:message.url});
       case "download": return startDownload(message);
       case "jobs": return refreshDownloads();
       case "chooseFolder": return native("chooseFolder");

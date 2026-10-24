@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -95,6 +96,10 @@ def summarize_probe(path: Path, raw: dict[str, Any]) -> dict[str, Any]:
             "channels": int(audio.get("channels") or 0),
             "sampleRate": int(audio.get("sample_rate") or 0),
         },
+        "subtitles": [{"codec": stream.get("codec_name"),
+                       "language": (stream.get("tags") or {}).get("language"),
+                       "title": (stream.get("tags") or {}).get("title")}
+                      for stream in streams if stream.get("codec_type") == "subtitle"],
     }
 
 
@@ -221,6 +226,26 @@ def convert(
 
     command += ["-y", str(output)]
     run(command, on_line)
+    return output
+
+
+def embed_subtitle(input_path, subtitle_path, output_path, *, language, title, on_line=None) -> Path:
+    """Remux one switchable caption track; copy the video and audio verbatim."""
+    from yt_dlp.utils import ISO639Utils
+
+    output = Path(output_path)
+    codec = {"mp4": "mov_text", "mov": "mov_text", "mkv": "srt", "webm": "webvtt"}[output.suffix.lstrip(".").lower()]
+    base_language = re.split(r"[-_]", language)[0].lower()
+    language_code = ISO639Utils.short2long(base_language) or base_language
+    command = ["ffmpeg", "-hide_banner", "-i", str(input_path), "-i", str(subtitle_path),
+               "-map", "0:v:0", "-map", "0:a:0?", "-map", "1:0", "-map_metadata", "0",
+               "-c", "copy", "-c:s", codec, "-metadata:s:s:0", f"language={language_code}",
+               "-metadata:s:s:0", f"title={title}", "-disposition:s:0", "default"]
+    if output.suffix.lower() in {".mp4", ".mov"}:
+        command += ["-movflags", "+faststart"]
+    run([*command, "-y", str(output)], on_line)
+    if len(probe(output)["subtitles"]) != 1:
+        raise RuntimeError("The downloaded video could not be verified with the selected subtitles")
     return output
 
 

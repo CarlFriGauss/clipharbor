@@ -13,7 +13,7 @@ from typing import Any
 from flask import Flask, jsonify, render_template, request, send_file, redirect, g
 from werkzeug.exceptions import HTTPException
 
-from .downloader import inspect_url
+from .downloader import inspect_url, validate_subtitle_selection
 from .cloud_downloads import download_to_destination, pending_downloads, reserve_retry, release_retry, retry_cloud_download, discard_download
 from .publishing import connections, authorize_google, connect_token, validate_destination, snapshot_destination, render_and_publish, retry_upload, disconnect_account as remove_connection
 from .google_config import google_client
@@ -260,6 +260,8 @@ def create_app() -> Flask:
     @app.post("/api/downloads")
     def start_download():
         data = _json()
+        subtitle_language = None if data.get("subtitleLanguage") == "" else data.get("subtitleLanguage")
+        validate_subtitle_selection(subtitle_language, data.get("subtitleSource", "manual"), str(data.get("outputFormat", "original")))
         provider = str(data.get("destination", "local"))
         options = data.get("deliveryOptions") or {}
         if provider not in {"local", "drive"}:
@@ -281,6 +283,8 @@ def create_app() -> Flask:
             x_compatible=bool(data.get("xCompatible", False)),
             audio_format_id=str(data.get("audioFormatId")) if data.get("audioFormatId") else None,
             audio_track_label=str(data.get("audioTrackLabel")) if data.get("audioTrackLabel") else None,
+            subtitle_language=subtitle_language,
+            subtitle_source=data.get("subtitleSource", "manual"),
             cookie_file=data.get("cookieFile") or None,
             register=registry.add,
         )

@@ -1,9 +1,9 @@
 name: Browser companion
 on:
   push:
-    paths: ['browser-extension/**', 'facebook-extension/**', 'browser_bridge.py', 'mediaforge/**', 'tests/test_browser_bridge.py', 'tests/test_browser_posting.py', 'tests/test_drive_picker.py', 'tests/test_export_submissions.py', 'tests/test_desktop.py', 'tests/*regressions.*', '.github/workflows/browser-companion.yml']
+    paths: ['browser-extension/**', 'facebook-extension/**', 'browser_bridge.py', 'mediaforge/**', 'tests/test_browser_bridge.py', 'tests/test_browser_posting.py', 'tests/test_drive_picker.py', 'tests/test_export_submissions.py', 'tests/test_source_tracks.py', 'tests/test_desktop.py', 'tests/*regressions.*', '.github/workflows/browser-companion.yml']
   pull_request:
-    paths: ['browser-extension/**', 'facebook-extension/**', 'browser_bridge.py', 'mediaforge/**', 'tests/test_browser_bridge.py', 'tests/test_browser_posting.py', 'tests/test_drive_picker.py', 'tests/test_export_submissions.py', 'tests/test_desktop.py', 'tests/*regressions.*', '.github/workflows/browser-companion.yml']
+    paths: ['browser-extension/**', 'facebook-extension/**', 'browser_bridge.py', 'mediaforge/**', 'tests/test_browser_bridge.py', 'tests/test_browser_posting.py', 'tests/test_drive_picker.py', 'tests/test_export_submissions.py', 'tests/test_source_tracks.py', 'tests/test_desktop.py', 'tests/*regressions.*', '.github/workflows/browser-companion.yml']
 permissions:
   contents: read
 jobs:
@@ -21,8 +21,9 @@ jobs:
         with:
           node-version: '22'
       - run: python -m pip install -r requirements.txt pytest
-      - run: python -m pytest -q tests/test_browser_bridge.py tests/test_desktop.py tests/test_browser_posting.py tests/test_drive_picker.py tests/test_export_submissions.py
+      - run: python -m pytest -q tests/test_browser_bridge.py tests/test_desktop.py tests/test_browser_posting.py tests/test_drive_picker.py tests/test_export_submissions.py tests/test_source_tracks.py -m "not integration"
       - run: node tests/extension_regressions.mjs
       - run: node tests/facebook_companion_regressions.mjs
       - run: node tests/facebook_page_regressions.mjs
       - run: node tests/export_submission_regressions.cjs
+      - run: node tests/source_tracks_regressions.cjs
