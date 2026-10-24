@@ -54,3 +54,11 @@ Posting tests cover caller separation, single claims, audience acknowledgement,
 no automatic resubmission, draft/attachment preservation and login/origin stops.
 The packaged smoke test covers graphical first-run setup, isolated PATH, saved
 projects, actual download/export, native progress, cold startup and clean quit.
+
+Live Google Picker selection was completed in the installed Windows app. A
+video export and a direct download both reached the selected Drive folder, with
+remote size/folder verification and removal of the direct download's temporary
+media. The Facebook companion connected successfully and stopped before upload
+when an existing draft was present. After the draft was handled, automatic video
+attachment, caption entry, Only me selection and Facebook's publication
+confirmation were verified in Chrome. Use 0.8.1 for repeated-retry protection.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import secrets
 import subprocess
 import sys
@@ -58,6 +59,25 @@ def _json() -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("A JSON object is required")
     return data
+
+
+def _start_delivery_job(data, kind, target, **kwargs):
+    retry_of = data.get("retryOf")
+    if retry_of is not None:
+        if not isinstance(retry_of, str) or not re.fullmatch(r"[a-f0-9]{32}", retry_of):
+            raise ValueError("Choose a valid failed export to retry.")
+        previous = jobs.get(retry_of)
+        previous_path = (previous.result or {}).get("path") if previous else None
+        path = (kwargs.get("result") or {}).get("path")
+        if not previous_path or not path or Path(previous_path).resolve() != Path(path).resolve():
+            raise ValueError("Retry the original export file.")
+        return jobs.start_retry(retry_of, kind, target, **kwargs)
+    identifier = data.get("requestId")
+    if identifier is not None:
+        if not isinstance(identifier, str) or not re.fullmatch(r"[a-f0-9]{32}", identifier):
+            raise ValueError("Start this export again from its dialog.")
+        return jobs.start_once("export:" + identifier, kind, target, **kwargs)
+    return jobs.start(kind, target, **kwargs)
 
 
 def _dialog(kind: str) -> list[str]:
@@ -365,7 +385,7 @@ def create_app() -> Flask:
         result = {"path": str(path), "token": registry.add(path), "media": probe(path)}
         if provider not in {"local", "drive"} and not result["media"].get("video"):
             raise ValueError("Social exports require a video.")
-        job = jobs.start("share" if provider == "facebook_browser" else "upload", retry_upload, result=result, provider=provider, options=options)
+        job = _start_delivery_job(data, "share" if provider == "facebook_browser" else "upload", retry_upload, result=result, provider=provider, options=options)
         return jsonify(job.public()), 202
 
     @app.post("/api/renders")
@@ -377,7 +397,7 @@ def create_app() -> Flask:
         options = snapshot_destination(provider, options)
         if provider not in {"local", "drive"} and not any(c.get("kind") == "video" and not c.get("hidden") for c in (data.get("project") or {}).get("clips", [])):
             raise ValueError("Social exports require a visible video section.")
-        job = jobs.start(
+        job = _start_delivery_job(data,
             "render",
             render_and_publish,
             provider=provider,

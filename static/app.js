@@ -623,11 +623,14 @@ function serializeProject() {
   return {version:1,settings:{width,height,fps,quality:$("#exportQuality").value,autoBalance:state.autoBalance,xCompatible:$("#exportFormat").value==="x_mp4"},assets:state.assets.map(asset=>({id:asset.id,path:asset.path,audio:Boolean(asset.media.audio),kind:asset.media.kind,duration:asset.media.duration})),clips:state.clips.map(clip=>{const track=getTrackState(clip.kind,clip.layer);return{...clip,muted:Boolean(clip.muted||track.muted),hidden:Boolean(clip.kind==="video"&&track.hidden)};})};
 }
 async function startExport() {
+  if(exportSubmitting)return;
+  exportSubmitting=true;$("#startExport").disabled=true;
+  try {
   const delivery = deliveryPayload();
   if (exportSource) {
     if (delivery.destination === "local") return $("#exportDialog").close();
     try {
-      const job = await api("/api/uploads", {method:"POST", body:JSON.stringify({token:exportSource.token,...delivery})});
+      const job = await api("/api/uploads", {method:"POST", body:JSON.stringify({token:exportSource.token,...delivery,requestId:exportRequestId})});
       job.deliveryRequest = delivery; trackJob(job); $("#exportDialog").close(); setView("jobs");
     } catch(error) { toast("Upload could not start", error.message, true); }
     return;
@@ -635,7 +638,8 @@ async function startExport() {
   if(!state.clips.length)return toast("Timeline is empty","Add at least one section before exporting.",true);
   const preset=$("#exportFormat").value,xCompatible=preset==="x_mp4";if(xCompatible&&!state.clips.some(clip=>clip.kind==="video"&&!getTrackState(clip.kind,clip.layer).hidden))return toast("X export needs video","Choose a regular audio format for an audio-only project.",true);
   const payload={project:serializeProject(),outputDirectory:$("#exportPath").value.trim(),filename:$("#exportName").value.trim(),outputFormat:xCompatible?"mp4":preset,saveProject:$("#saveProjectFile").checked}; if(!payload.outputDirectory)return toast("Choose an output folder","The render needs a destination.",true);
-  try{const job=await api("/api/renders",{method:"POST",body:JSON.stringify({...payload,...delivery})});job.deliveryRequest = delivery.destination === "local" ? null : delivery;$("#exportDialog").close();trackJob(job);setView("jobs");toast("Render started","Your sources remain untouched.");}catch(error){toast("Render could not start",error.message,true);}
+  try{const job=await api("/api/renders",{method:"POST",body:JSON.stringify({...payload,...delivery,requestId:exportRequestId})});job.deliveryRequest = delivery.destination === "local" ? null : delivery;$("#exportDialog").close();trackJob(job);setView("jobs");toast("Render started","Your sources remain untouched.");}catch(error){toast("Render could not start",error.message,true);}
+  } finally { exportSubmitting=false;updateDestination(); }
 }
 function applyInspectorChange(input) {
   const clips=selectedClips().filter(clip=>!isTrackLocked(clip));if(!clips.length)return;const prop=input.dataset.prop;let value=input.type==="checkbox"?input.checked:Number(input.value);if(input.type!=="checkbox"&&input.value==="")return;if(prop==="layer")value-=1;
