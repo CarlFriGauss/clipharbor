@@ -8,6 +8,13 @@ function languageLabel(track) {
   try{return new Intl.DisplayNames([navigator.language||"en"],{type:"language"}).of(track.language.replaceAll("_","-"))||track.language;}
   catch{return track.language;}
 }
+function subtitleDescription(track) {
+  if(track.sourceLanguage&&(track.translated||track.originalCaption)) {
+    const source=languageLabel({language:track.sourceLanguage});
+    return track.translated?`translated from ${source}`:`captions for ${source} audio`;
+  }
+  return track.translated?"auto-translated":track.automatic?"automatic captions":"creator subtitles";
+}
 function clearTracks() {
   inspected=null;inspectedUrl=null;
   $("audioTrack").replaceChildren(new Option("Automatic / source default",""));
@@ -20,7 +27,7 @@ function renderTracks(info) {
   $("audioField").hidden=audio.length<2;
   const preferred=audio.find(track=>track.original)||audio.find(track=>track.default);
   if(preferred&&audio.length>1)$("audioTrack").value=preferred.formatId;
-  $("subtitleTrack").replaceChildren(new Option("None",""),...subtitles.map((track,index)=>new Option(`${languageLabel(track)} [${track.language}] · ${track.translated?"auto-translated":track.automatic?"automatic captions":"creator subtitles"}`,String(index))));
+  $("subtitleTrack").replaceChildren(new Option("None",""),...subtitles.map((track,index)=>new Option(`${languageLabel(track)} [${track.language}] · ${subtitleDescription(track)}`,String(index))));
   $("subtitleField").hidden=!subtitles.length;
   $("sourceInfo").textContent=info.title+(/facebook/i.test(info.site||"")?" · Only languages Facebook exposes for download are listed.":"");
   $("sourceInfo").hidden=false;

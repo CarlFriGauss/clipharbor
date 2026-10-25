@@ -192,11 +192,11 @@ def handle(message):
     else:
         client, health = ensure_desktop()
     try:
-        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 9, 0)
+        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 9, 1)
     except (KeyError, ValueError, AttributeError):
         compatible = False
     if not compatible:
-        raise BridgeError("Quit the older ClipHarbor app, install version 0.9.0 or newer, then try again.")
+        raise BridgeError("Quit the older ClipHarbor app, install version 0.9.1 or newer, then try again.")
     if action == "status":
         drive = client.api("/api/connections")["drive"]
         return {"version": health["version"], "settings": settings(),

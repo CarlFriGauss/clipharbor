@@ -41,6 +41,8 @@ element('#formatSelect').value='mp4';element('#urlInput').value=state.inspectedU
   element('#urlInput').value='https://example.test/another';await ctx.startDownload();
   assert.equal(submitted.subtitleLanguage,null);assert.equal(submitted.audioFormatId,null,'A different source must not inherit audio choices');
   ctx.renderSourceTracks({});assert.equal(element('#subtitleTrackField').hidden,true);
+  assert.equal(ctx.subtitleDescription({language:'ar-orig',sourceLanguage:'ar',originalCaption:true}),'captions for Arabic audio');
+  assert.equal(ctx.subtitleDescription({language:'ar',sourceLanguage:'en',translated:true}),'translated from English');
 
   // Run the popup's actual handlers to verify the same behavior across the native bridge.
   elementMap.clear();let messages=[];
@@ -61,5 +63,15 @@ element('#formatSelect').value='mp4';element('#urlInput').value=state.inspectedU
   element('url').value='https://example.test/new';element('url').listeners.input();popup.update();
   await element('downloadForm').listeners.submit({preventDefault(){}});
   assert.equal(messages.findLast(x=>x.action==='download').audioFormatId,null);
+  assert.equal(popup.subtitleDescription({language:'ar-orig',sourceLanguage:'ar',originalCaption:true}),'captions for Arabic audio');
+  assert.equal(popup.subtitleDescription({language:'ar',sourceLanguage:'en',translated:true}),'translated from English');
+
+  state.jobs=new Map([['active',{id:'active',kind:'download',status:'running',progress:86,message:'Saving MP4',canCancel:true}]]);
+  ctx.jobResultMarkup=()=>'';
+  vm.runInContext(app.slice(app.indexOf('function updateJobs('),app.indexOf('async function revealResult(')),ctx);
+  ctx.updateJobs();assert.match(element('#jobsList').innerHTML,/Cancel download/);
+  state.jobs.get('active').cancelRequested=true;state.jobs.get('active').canCancel=false;
+  ctx.updateJobs();assert.match(element('#jobsList').innerHTML,/disabled>Cancelling/);
+  state.jobs.get('active').status='cancelled';ctx.updateJobs();assert.doesNotMatch(element('#jobsList').innerHTML,/data-cancel-job/);
   console.log('App and popup subtitle selection, None, audio-only formats, and stale-source resets passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -30,8 +30,57 @@ def validate_subtitle_selection(language: str | None, source: str, output_format
         raise ValueError("Subtitles require a video output format")
 
 
+def _caption_query(entry):
+    return parse_qs(urlsplit(entry.get("url") or "").query)
+
+
+def _base_language(language):
+    base = str(language or "").replace("_", "-").split("-", 1)[0].lower()
+    return {"iw": "he", "in": "id", "ji": "yi"}.get(base, base)
+
+
+def normalise_caption_sources(info):
+    """Avoid translating from an arbitrary dub when original-audio subs exist.
+
+    yt-dlp can group translations from every ASR audio language under one key.
+    Its last VTT otherwise wins, which need not be the original video language.
+    """
+    audio = audio_tracks_from_formats(info.get("formats") or [])
+    original = next((track for track in audio if track["original"]), None)
+    original = original or next((track for track in audio if track["default"]), None)
+    original_language = _base_language(original["language"] if original else info.get("language"))
+    captions = {}
+    for language, entries in (info.get("automatic_captions") or {}).items():
+        native, from_original = [], []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            query = _caption_query(entry)
+            source = _base_language((query.get("lang") or [""])[0])
+            translated = bool(query.get("tlang"))
+            if source and source == _base_language(language) and not translated:
+                native.append(entry)
+            if source and source == original_language:
+                from_original.append(entry)
+        if language.endswith("-orig"):
+            captions[language] = native or entries
+        else:
+            captions[language] = from_original or native or entries
+    info["automatic_captions"] = captions
+    return info
+
+
+def _preferred_subtitle(entries):
+    for extension in ("srt", "vtt", "ttml", "dfxp"):
+        matches = [entry for entry in entries if entry.get("ext") == extension]
+        if matches:
+            return matches[-1]
+    return entries[-1]
+
+
 def subtitle_tracks_from_info(info: dict[str, Any]) -> list[dict[str, Any]]:
     """Expose actual downloadable tracks, never invent a translation language."""
+    normalise_caption_sources(info)
     tracks = []
     for source, key in (("manual", "subtitles"), ("automatic", "automatic_captions")):
         for language, entries in (info.get(key) or {}).items():
@@ -44,12 +93,22 @@ def subtitle_tracks_from_info(info: dict[str, Any]) -> list[dict[str, Any]]:
                       and (not entry.get("ext") or entry["ext"] in _SUBTITLE_EXTS)]
             if not usable:
                 continue
+            selected = _preferred_subtitle(usable)
+            query = _caption_query(selected)
+            source_language = (query.get("lang") or [None])[0]
+            translated = bool(query.get("tlang"))
+            label = str(selected.get("name") or language)
+            original_caption = source == "automatic" and language.endswith("-orig") and not translated
+            if original_caption:
+                label = re.sub(r"\s*\(Original\)\s*$", "", label, flags=re.I)
             tracks.append({
                 "language": language,
                 "source": source,
-                "label": str(next((entry["name"] for entry in usable if entry.get("name")), language)),
+                "label": label,
                 "automatic": source == "automatic",
-                "translated": any(parse_qs(urlsplit(entry.get("url") or "").query).get("tlang") for entry in usable),
+                "translated": translated,
+                "sourceLanguage": source_language,
+                "originalCaption": original_caption,
             })
     return sorted(tracks, key=lambda track: (track["label"].casefold(), track["source"] != "manual"))
 
@@ -312,7 +371,9 @@ def _download(context, *, url, destination, working, target_format, x_compatible
     if target_format != "original":
         output = working / f"converted.{target_format}"
         context.update(82, f"Rendering {target_format.upper()} output")
-        convert(source, output, target_format, x_compatible=x_compatible, on_line=context.write)
+        convert(source, output, target_format, x_compatible=x_compatible, on_line=context.write,
+                on_progress=lambda ratio, mode: context.update(82 + ratio * 13, f"{mode} · {ratio:.0%}"),
+                check_cancelled=getattr(context, "check_cancelled", None))
         final_path = output
         converted = True
 
@@ -334,10 +395,13 @@ def _download(context, *, url, destination, working, target_format, x_compatible
             extension = "mkv"
         captioned = working / f"captioned.{extension}"
         embed_subtitle(final_path, subtitle_file, captioned, language=subtitle_language,
-                       title=selected_subtitle["label"], on_line=context.write)
+                       title=selected_subtitle["label"], on_line=context.write,
+                       check_cancelled=getattr(context, "check_cancelled", None))
         final_path = captioned
 
     with _output_lock:
+        if hasattr(context, "check_cancelled"):
+            context.check_cancelled()
         finished = unique_output(destination, title, final_path.suffix.lstrip("."))
         final_path.replace(finished)
     final_path = finished

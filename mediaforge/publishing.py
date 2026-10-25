@@ -589,6 +589,10 @@ class _RenderProgress:
     def write(self, line):
         self.context.write(line)
 
+    def check_cancelled(self):
+        if hasattr(self.context, "check_cancelled"):
+            self.context.check_cancelled()
+
 
 def render_and_publish(context, *, provider="local", delivery_options=None, **kwargs):
     from .editor import render

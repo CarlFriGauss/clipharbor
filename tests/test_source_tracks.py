@@ -261,3 +261,19 @@ def test_drive_staging_uploads_the_captioned_file_before_cleaning_it(media_site,
         output_directory=str(tmp_path / "local"), output_format="mp4", subtitle_language="fr", register=lambda p: "file")
     assert result["subtitleTrack"]["language"] == "fr" and result["localAvailable"] is False
     assert not observed[0].exists() and list(cloud.staging_root().iterdir()) == []
+
+
+@pytest.mark.integration
+def test_actual_download_uses_original_caption_source_instead_of_last_dub(media_site, tmp_path, monkeypatch):
+    root, base=media_site
+    for name,text in [('ar-en','FROM_ENGLISH'),('ar-uk','FROM_UKRAINIAN')]:
+        (root/f'{name}.vtt').write_text(f'WEBVTT\n\n00:00.000 --> 00:01.100\n{text}\n',encoding='utf-8')
+    fixture_extractor(monkeypatch,{'id':'test','title':'Caption origin check','formats':[
+        {'format_id':'source','url':base+'/source.mp4','vcodec':'h264','acodec':'aac','language':'en-US','format_note':'English original (default)'}],
+        'automatic_captions':{'ar':[{'url':base+'/ar-en.vtt?lang=en&tlang=ar','ext':'vtt','name':'Arabic'},
+                                  {'url':base+'/ar-uk.vtt?lang=uk&tlang=ar','ext':'vtt','name':'Arabic'}]}})
+    result=downloader.download(context(),url=base+'/track-fixture',output_directory=str(tmp_path),output_format='mp4',
+        subtitle_language='ar',subtitle_source='automatic',register=lambda p:'file')
+    text=subprocess.check_output(['ffmpeg','-v','error','-i',result['path'],'-map','0:s:0','-f','srt','pipe:1']).decode('utf-8')
+    assert 'FROM_ENGLISH' in text and 'FROM_UKRAINIAN' not in text
+    assert result['subtitleTrack']['sourceLanguage']=='en'
