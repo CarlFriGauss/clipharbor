@@ -57,6 +57,13 @@ function sourceLanguageLabel(track) {
   try { return new Intl.DisplayNames([navigator.language || "en"], {type:"language"}).of(track.language.replaceAll("_","-")) || track.language; }
   catch { return track.language; }
 }
+function subtitleDescription(track) {
+  if(track.sourceLanguage && (track.translated || track.originalCaption)) {
+    const source=sourceLanguageLabel({language:track.sourceLanguage});
+    return track.translated?`translated from ${source}`:`captions for ${source} audio`;
+  }
+  return track.translated?"auto-translated":track.automatic?"automatic captions":"creator subtitles";
+}
 function updateSubtitleFormat() {
   const audioOnly=["mp3","m4a","wav"].includes($("#formatSelect").value);
   $("#subtitleTrackSelect").disabled=audioOnly;
@@ -65,7 +72,7 @@ function updateSubtitleFormat() {
 function renderSourceTracks(info = {}) {
   renderAudioTracks(info);
   const tracks=info.subtitleTracks||[], select=$("#subtitleTrackSelect");
-  select.innerHTML=`<option value="">None</option>`+tracks.map((track,index)=>`<option value="${index}">${escapeHtml(sourceLanguageLabel(track))} [${escapeHtml(track.language)}] · ${track.translated?"auto-translated":track.automatic?"automatic captions":"creator subtitles"}</option>`).join("");
+  select.innerHTML=`<option value="">None</option>`+tracks.map((track,index)=>`<option value="${index}">${escapeHtml(sourceLanguageLabel(track))} [${escapeHtml(track.language)}] · ${escapeHtml(subtitleDescription(track))}</option>`).join("");
   select.value="";
   $("#subtitleTrackField").classList.toggle("hidden",!tracks.length);
   const facebook=/facebook/i.test(info.site||"");
@@ -119,7 +126,7 @@ function trackJob(job) {
     try {
       const latest = await api(`/api/jobs/${job.id}`); latest.deliveryRequest = state.jobs.get(job.id)?.deliveryRequest; state.jobs.set(job.id, latest); updateJobs();
       if (["queued", "running"].includes(latest.status)) return setTimeout(poll, 650);
-      if (latest.status === "completed") completeJob(latest); else {toast(`${latest.kind} failed`, latest.error || "See Activity for details.", true); if(latest.result?.cloudDownloadId) refreshConnections().catch(()=>{});}
+      if (latest.status === "completed") completeJob(latest); else if(latest.status === "cancelled") toast("Download cancelled"); else {toast(`${latest.kind} failed`, latest.error || "See Activity for details.", true); if(latest.result?.cloudDownloadId) refreshConnections().catch(()=>{});}
     } catch (error) { toast("Lost job status", error.message, true); }
   }; setTimeout(poll, 400);
 }
@@ -166,7 +173,11 @@ function updateJobs() {
   const allJobs = [...state.jobs.values()].sort((a,b) => b.createdAt - a.createdAt), active = allJobs.filter(job => ["queued","running"].includes(job.status)).length;
   $("#jobCount").textContent = active; $("#jobCount").classList.toggle("hidden", !active);
   if (!allJobs.length) return $("#jobsList").innerHTML = `<div class="empty-jobs">No activity yet.</div>`;
-  $("#jobsList").innerHTML = allJobs.map(job => `<article class="job-card ${escapeHtml(job.status)}"><div class="job-top"><strong>${escapeHtml(job.kind)}</strong><span class="job-status">${escapeHtml(job.status)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${job.progress}%"></div></div><div class="job-message"><span>${escapeHtml(job.message || "")}</span><span>${Math.round(job.progress)}%</span></div>${jobResultMarkup(job)}${job.error ? `<p class="job-error">${escapeHtml(job.error)}</p>` : ""}${job.log?.length ? `<details><summary class="job-status">FFmpeg / downloader details</summary><pre class="job-log">${escapeHtml(job.log.slice(-16).join("\n"))}</pre></details>` : ""}</article>`).join("");
+  $("#jobsList").innerHTML = allJobs.map(job => `<article class="job-card ${escapeHtml(job.status)}"><div class="job-top"><strong>${escapeHtml(job.kind)}</strong><span class="job-status">${escapeHtml(job.status)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${job.progress}%"></div></div><div class="job-message"><span>${escapeHtml(job.message || "")}</span><span>${Math.round(job.progress)}%</span></div>${jobResultMarkup(job)}${job.canCancel||job.cancelRequested&&job.status==="running"?`<button class="button ghost" data-cancel-job="${escapeHtml(job.id)}" ${job.cancelRequested?"disabled":""}>${job.cancelRequested?"Cancelling…":"Cancel download"}</button>`:""}${job.error ? `<p class="job-error">${escapeHtml(job.error)}</p>` : ""}${job.log?.length ? `<details><summary class="job-status">FFmpeg / downloader details</summary><pre class="job-log">${escapeHtml(job.log.slice(-16).join("\n"))}</pre></details>` : ""}</article>`).join("");
+}
+async function cancelDownload(jobId) {
+  try { const job=await api(`/api/jobs/${encodeURIComponent(jobId)}/cancel`,{method:"POST",body:"{}"});state.jobs.set(job.id,job);updateJobs(); }
+  catch(error){toast("Download could not be cancelled",error.message,true);}
 }
 async function revealResult(result=state.lastResult){if(!result?.token)return toast("File is unavailable","The completed file is no longer registered.",true);try{await api(`/api/reveal/${encodeURIComponent(result.token)}`,{method:"POST",body:"{}"});}catch(error){toast("Folder could not be opened",error.message,true);}}
 function editJobResult(jobId){const job=state.jobs.get(jobId);if(!job?.result)return;state.lastResult=job.result;addResultToEditor();}
@@ -712,7 +723,7 @@ function wireEvents() {
   });
   $$('[data-prop]').forEach(input=>input.addEventListener("change",event=>applyInspectorChange(event.target)));$("#jumpStart").addEventListener("click",()=>setPlayhead(0));$("#playPause").addEventListener("click",toggleTimelinePlayback);
   $("#newProject").addEventListener("click",newProject);$("#openProject").addEventListener("click",showProjectBrowser);$("#saveProject").addEventListener("click",showSaveProjectDialog);$("#confirmSaveProject").addEventListener("click",saveNamedProject);$("#projectNameInput").addEventListener("keydown",event=>{if(event.key==="Enter")saveNamedProject();});$("#projectList").addEventListener("click",event=>{const open=event.target.closest("[data-open-project]");if(open)return openNamedProject(open.dataset.openProject);const remove=event.target.closest("[data-delete-project]");if(remove)return deleteNamedProject(remove.dataset.deleteProject);});
-  $("#exportFormat").addEventListener("change",()=>{updateExportPresetUI();markProjectDirty();saveDraft();});for(const id of ["#exportCanvas","#exportFps","#exportQuality"])$(id).addEventListener("change",()=>{markProjectDirty();saveDraft();});$("#exportButton").addEventListener("click",()=>showExport());$("#startExport").addEventListener("click",startExport);$("#editResult").addEventListener("click",addResultToEditor);$("#revealResult").addEventListener("click",()=>revealResult());$("#jobsList").addEventListener("click",event=>{const reveal=event.target.closest("[data-job-reveal]");if(reveal)return revealResult(state.jobs.get(reveal.dataset.jobReveal)?.result);const edit=event.target.closest("[data-job-edit]");if(edit)return editJobResult(edit.dataset.jobEdit);});$$('[data-close-dialog]').forEach(button=>button.addEventListener("click",()=>button.closest("dialog").close()));
+  $("#exportFormat").addEventListener("change",()=>{updateExportPresetUI();markProjectDirty();saveDraft();});for(const id of ["#exportCanvas","#exportFps","#exportQuality"])$(id).addEventListener("change",()=>{markProjectDirty();saveDraft();});$("#exportButton").addEventListener("click",()=>showExport());$("#startExport").addEventListener("click",startExport);$("#editResult").addEventListener("click",addResultToEditor);$("#revealResult").addEventListener("click",()=>revealResult());$("#jobsList").addEventListener("click",event=>{const cancel=event.target.closest("[data-cancel-job]");if(cancel)return cancelDownload(cancel.dataset.cancelJob);const reveal=event.target.closest("[data-job-reveal]");if(reveal)return revealResult(state.jobs.get(reveal.dataset.jobReveal)?.result);const edit=event.target.closest("[data-job-edit]");if(edit)return editJobResult(edit.dataset.jobEdit);});$$('[data-close-dialog]').forEach(button=>button.addEventListener("click",()=>button.closest("dialog").close()));
   // Source audition and timeline playback never write each other's clocks.
   [$("#videoPlayer"),$("#audioPlayer")].forEach(player=>player.addEventListener("play",()=>{if(!state.previewClipId&&state.playingTimeline)stopTimelinePlayback();}));document.addEventListener("keydown",handleKeyboard);
 }

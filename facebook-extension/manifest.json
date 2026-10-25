@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClipHarbor Post — Facebook companion",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "minimum_chrome_version": "120",
   "description": "Optional companion: publish an explicitly exported video and caption through your own signed-in Facebook profile.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjOKTl8GmrrUYF+NZG6oXHqMLdhTgkDjpJz1IC4It+qlBEKYwAxfMvfnM7gaWrtTEnMNzcl1/ZOBQAIu5pLcEH4AgnO0do8LgNtsz0nzfyB1ItZZKZF2BrcvdP0Zz9tAqvPyDxW40Afhx3mFCSpnP+f2fzAAafmn9JyAo/TMl+qKJFCwCVQtQ07W/ki4XOx11ue/5xH+VrSqKtli8IjcmWtxAOTZ7DfFf4tkVmeMQgBm7E8DkN03LCtMvd5TD6XLRvUKiLYrMTyFj66pXiz9STmcixL2M2D0Rud5yZ2/v/syqXFBm29QFRN+xuuJmdFeR4yEapHoB6BcjLJRkRRf2gwIDAQAB",

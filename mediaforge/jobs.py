@@ -1,11 +1,29 @@
 from __future__ import annotations
 
 import threading
+import logging
 import time
 import traceback
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+
+_log = logging.getLogger(__name__)
+
+
+class JobCancelled(RuntimeError):
+    pass
+
+
+def diagnostic_source(value: str) -> str:
+    """Keep source identity locally, excluding credentials and signed queries."""
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return "(invalid source URL)"
+    query = urlencode({"v": parse_qs(parsed.query)["v"][0]}) if parsed.hostname in {"youtube.com", "www.youtube.com", "m.youtube.com"} and "v" in parse_qs(parsed.query) else ""
+    return urlunsplit((parsed.scheme, parsed.hostname or "", parsed.path, query, ""))
 
 
 @dataclass
@@ -21,6 +39,7 @@ class Job:
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     retry_job_id: str | None = None
+    cancel_requested: bool = False
 
     def public(self) -> dict[str, Any]:
         value = {
@@ -37,6 +56,9 @@ class Job:
         }
         if self.retry_job_id:
             value["retryJobId"] = self.retry_job_id
+        if self.kind == "download":
+            value["canCancel"] = self.status in {"queued", "running"} and self.result is None and not self.cancel_requested
+            value["cancelRequested"] = self.cancel_requested
         return value
 
 
@@ -46,10 +68,17 @@ class JobContext:
         self.job_id = job_id
 
     def update(self, progress: float | None = None, message: str | None = None) -> None:
+        self.check_cancelled()
         self.manager.update(self.job_id, progress=progress, message=message)
 
     def write(self, line: str) -> None:
+        self.check_cancelled()
         self.manager.write(self.job_id, line)
+
+    def check_cancelled(self) -> None:
+        job = self.manager.get(self.job_id)
+        if job and job.cancel_requested:
+            raise JobCancelled("Download cancelled")
 
 
 class JobManager:
@@ -106,12 +135,34 @@ class JobManager:
         kwargs: dict[str, Any],
     ) -> None:
         self.update(job_id, status="running", message="Starting")
+        _log.info("Job %s (%s) started: source=%s, format=%s, X-compatible=%s, audio=%s, subtitle=%s/%s", job_id,
+                  self._jobs[job_id].kind, diagnostic_source(str(kwargs.get("url") or "")),
+                  kwargs.get("output_format"), kwargs.get("x_compatible"), kwargs.get("audio_format_id"), kwargs.get("subtitle_source"), kwargs.get("subtitle_language"))
         try:
+            JobContext(self, job_id).check_cancelled()
             result = target(JobContext(self, job_id), *args, **kwargs)
             self.update(job_id, status="completed", progress=100, message="Complete", result=result)
+            _log.info("Job %s completed", job_id)
         except Exception as exc:  # surfaced to the local UI with useful context
+            if isinstance(exc, JobCancelled) or self._jobs[job_id].cancel_requested:
+                self.update(job_id, status="cancelled", message="Cancelled")
+                _log.info("Job %s cancelled", job_id)
+                return
             self.write(job_id, traceback.format_exc())
             self.update(job_id, status="failed", message="Failed", error=str(exc))
+            _log.exception("Job %s failed", job_id)
+
+    def cancel(self, job_id: str) -> Job:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job or job.kind != "download" or job.status not in {"queued", "running"}:
+                raise ValueError("Choose an active download to cancel")
+            if job.result is not None:
+                raise ValueError("The source download has finished; wait for its upload to finish")
+            job.cancel_requested = True
+            job.message = "Cancelling download…"
+            _log.info("Job %s cancellation requested", job_id)
+            return job
 
     def update(self, job_id: str, **changes: Any) -> None:
         with self._lock:

@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.0/ClipHarbor-Setup-0.9.0-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.1/ClipHarbor-Setup-0.9.1-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -32,7 +32,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.0/ClipHarbor-Setup-0.9.0-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.1/ClipHarbor-Setup-0.9.1-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -41,9 +41,14 @@ then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
 
-Version **0.9.0** adds selectable subtitles and automatic caption translations
-to source inspection in the app and browser extension. Facebook audio languages
-use the same exact-track selection as YouTube when the source exposes them.
+Version **0.9.1** fixes slow MP4 downloads that could appear stuck at 82% while
+unnecessarily re-encoding high-resolution AV1 video. Supported video codecs are
+now copied into MP4, preserving source resolution, frame rate and compressed
+video quality. Necessary conversions use bounded codec threads and low process
+priority; processing progress advances and Activity offers **Cancel download**.
+Subtitle labels distinguish captions for a dubbed audio track from translations
+of the original audio, and translations prefer the original source language.
+Facebook audio languages use the same exact-track selection as YouTube when the source exposes them.
 No runtime dependency or local AI model is added. It also includes the [browser extension](#browser-extension) for
 Chrome and Edge, with background downloads to this computer or Google Drive.
 The installer registers its small local bridge and includes the extension files.
@@ -60,7 +65,7 @@ YouTube requires its own Google upload permission. X and Facebook Page publishin
 require the platform tokens described below. Personal-profile sharing needs no
 Facebook token in ClipHarbor. Each installer user signs in to their own account.
 Advanced source builds need the publisher registration described below.
-[Release notes](packaging/RELEASE-0.9.0.md)
+[Release notes](packaging/RELEASE-0.9.1.md)
 explain the supported destinations and validation. The earlier Tcl/Tk startup
 fix remains included; install over the old version without deleting projects.
 
@@ -76,7 +81,7 @@ Windows security. Download only from this repository's releases. See
 2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 3. Enable **Developer mode**, click **Load unpacked**, and select
    `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension` (inside your installation).
-   Alternatively, download [ClipHarbor-Extension-0.9.0.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.0/ClipHarbor-Extension-0.9.0.zip),
+   Alternatively, download [ClipHarbor-Extension-0.9.1.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.1/ClipHarbor-Extension-0.9.1.zip),
    extract it to a permanent folder, and select that folder.
 4. Pin ClipHarbor to your browser toolbar. Open a video page, click ClipHarbor,
    choose the link, format and **This computer** or **Google Drive**, and download.
@@ -143,7 +148,7 @@ Facebook host or debugger permission.
 
 1. In Chrome/Edge’s Extensions page load the installed
    `%LOCALAPPDATA%\Programs\ClipHarbor\facebook-extension` folder, or extract
-   `ClipHarbor-Facebook-Companion-0.9.0.zip` from the release and load that folder.
+   `ClipHarbor-Facebook-Companion-0.9.1.zip` from the release and load that folder.
 2. Review its stronger **debugger** permission. Chrome does not allow this
    permission to be requested optionally. Although this companion’s code attaches
    only to the Facebook tab it creates, the browser permission itself is powerful
@@ -433,6 +438,29 @@ normal format conversion still applies. Audio-only outputs disable subtitles.
 Computer and Google Drive downloads use the same processing. No transcription
 model, translation service, GPU requirement or additional runtime dependency is
 introduced.
+
+Normal MP4 saves preserve supported source video codecs (including AV1, VP9,
+HEVC and H.264) instead of forcing an H.264 encode. Some players require support
+for the source codec. Use **Make it X compatible** when H.264 compatibility and
+the X profile are needed. This explicit mode can still require conversion.
+Managed media processing runs at lower priority, uses two codec threads and one
+conversion at a time, and reports real processing progress. Active source
+downloads can be cancelled in Activity; completed uploads/publication are not
+interrupted by that control.
+
+On a dubbed video, **captions for Arabic audio** means captions generated from
+that Arabic track; it does not mean the original video was spoken in Arabic.
+**Translated from English** identifies a separate translation of the English
+caption source. When a provider groups alternatives from many dubbed languages
+under one target language, ClipHarbor now prefers the video's original audio
+language instead of whichever dub happens to be last. The selected caption
+source is the same one used for the actual download.
+
+Local diagnostic logs include timestamped job source identity and selected
+format, conversion codec/canvas/FPS, bounded FFmpeg commands and periodic media
+processing status. Source URL credentials, fragments and signed query strings
+are omitted; a YouTube video ID is retained for troubleshooting. Account tokens
+and cookie contents are not added to those diagnostics.
 
 Facebook offers [Meta AI translated and dubbed reels](https://about.fb.com/news/2025/10/discover-reels-around-world-meta-ai-translation/)
 and [automatically translated captions](https://www.facebook.com/help/1557096867988011/).

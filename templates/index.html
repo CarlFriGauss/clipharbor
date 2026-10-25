@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.9.0') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.9.1') }}">
 </head>
 <body>
   <header class="topbar">
@@ -60,9 +60,9 @@
         <section class="card options-card">
           <div class="card-heading"><div><p class="step">02</p><h2>Output</h2></div></div>
           <div class="form-grid">
-            <label class="field"><span>Format</span>
-              <select id="formatSelect">
-                <option value="mp4" selected>MP4 · final video, no editor required</option>
+            <label class="field"><span id="downloadFormatLabel">Format</span>
+              <select id="formatSelect" aria-labelledby="downloadFormatLabel" aria-describedby="downloadFormatHelp">
+                <option value="mp4" selected>MP4 · fast save, source video quality</option>
                 <option value="original">Original source quality · source container</option>
                 <option value="mkv">MKV · lossless remux</option>
                 <option value="webm">WebM · web optimized</option>
@@ -71,6 +71,7 @@
                 <option value="m4a">M4A · high quality audio</option>
                 <option value="wav">WAV · uncompressed audio</option>
               </select>
+              <small id="downloadFormatHelp" class="field-help">MP4 keeps supported source video codecs to avoid slow conversion. Use X compatibility when H.264 is required.</small>
             </label>
             <label id="audioTrackField" class="field hidden"><span id="audioTrackLabel">Audio track</span>
               <select id="audioTrackSelect" aria-labelledby="audioTrackLabel" aria-describedby="audioTrackHelp"><option value="">Automatic / source default</option></select>
@@ -308,9 +309,9 @@
     <div id="projectList" class="project-list"></div>
   </dialog>
 
-  <script src="{{ url_for('static', filename='destinations.js', v='0.9.0') }}" defer></script>
-  <script src="{{ url_for('static', filename='download-destinations.js', v='0.9.0') }}" defer></script>
-  <script src="{{ url_for('static', filename='editor-layout.js', v='0.9.0') }}" defer></script>
-  <script src="{{ url_for('static', filename='app.js', v='0.9.0') }}" defer></script>
+  <script src="{{ url_for('static', filename='destinations.js', v='0.9.1') }}" defer></script>
+  <script src="{{ url_for('static', filename='download-destinations.js', v='0.9.1') }}" defer></script>
+  <script src="{{ url_for('static', filename='editor-layout.js', v='0.9.1') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js', v='0.9.1') }}" defer></script>
 </body>
 </html>

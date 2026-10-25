@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
+import os
 import re
 import shutil
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -12,6 +16,10 @@ from typing import Any, Callable
 VIDEO_FORMATS = {"original", "mp4", "mkv", "webm", "mov"}
 AUDIO_FORMATS = {"mp3", "m4a", "wav"}
 ALL_FORMATS = VIDEO_FORMATS | AUDIO_FORMATS
+_media_slot = threading.Lock()
+_log = logging.getLogger(__name__)
+MEDIA_THREADS = 2
+MP4_COPY_CODECS = {"h264", "hevc", "av1", "vp9", "mpeg4"}
 
 
 def require_tools() -> None:
@@ -20,23 +28,79 @@ def require_tools() -> None:
         raise RuntimeError(f"Missing required media tools: {', '.join(missing)}")
 
 
-def run(command: list[str], on_line: Callable[[str], None] | None = None) -> None:
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
-    assert process.stdout is not None
-    for line in process.stdout:
-        if on_line:
-            on_line(line.rstrip())
-    code = process.wait()
-    if code:
-        raise RuntimeError(f"FFmpeg exited with status {code}")
+def bounded_command(command: list[str]) -> list[str]:
+    result = [command[0], "-filter_threads", "1", "-filter_complex_threads", "1"]
+    for argument in command[1:-1]:
+        if argument == "-i":
+            result += ["-threads", str(MEDIA_THREADS)]
+        result.append(argument)
+    return [*result, "-threads", str(MEDIA_THREADS), command[-1]]
+
+
+def run(command: list[str], on_line: Callable[[str], None] | None = None, *, check_cancelled=None) -> None:
+    command = bounded_command(command)
+    if check_cancelled:
+        check_cancelled()
+    waiting = False
+    while not _media_slot.acquire(timeout=.25):
+        if check_cancelled:
+            check_cancelled()
+        if on_line and not waiting:
+            on_line("Waiting for another media operation to finish")
+            waiting = True
+    process = None
+    started = time.monotonic()
+    try:
+        if check_cancelled:
+            check_cancelled()
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0),
+        )
+        if hasattr(os, "setpriority"):
+            try:
+                os.setpriority(os.PRIO_PROCESS, process.pid, 10)
+            except OSError:
+                pass
+        _log.info("FFmpeg PID %s started, %s media threads, low priority: %s", process.pid, MEDIA_THREADS, command)
+        assert process.stdout is not None
+        last_heartbeat = started
+        progress = {}
+        for line in process.stdout:
+            if check_cancelled:
+                check_cancelled()
+            clean = line.rstrip()
+            if "=" in clean:
+                key, value = clean.split("=", 1)
+                if key in {"out_time", "speed"}:
+                    progress[key] = value
+            if time.monotonic() - last_heartbeat >= 30:
+                _log.info("FFmpeg PID %s still processing: %s", process.pid, progress)
+                last_heartbeat = time.monotonic()
+            if on_line:
+                on_line(clean)
+        code = process.wait()
+        _log.info("FFmpeg PID %s finished in %.2fs, exit %s", process.pid, time.monotonic() - started, code)
+        if code:
+            raise RuntimeError(f"FFmpeg exited with status {code}")
+    finally:
+        if process is not None:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                _log.info("FFmpeg PID %s stopped after interruption in %.2fs", process.pid, time.monotonic() - started)
+            if process.stdout:
+                process.stdout.close()
+        _media_slot.release()
 
 
 def probe(path: str | Path) -> dict[str, Any]:
@@ -166,6 +230,8 @@ def convert(
     *,
     x_compatible: bool = False,
     on_line: Callable[[str], None] | None = None,
+    on_progress: Callable[[float, str], None] | None = None,
+    check_cancelled=None,
 ) -> Path:
     source = Path(input_path).resolve()
     output = Path(output_path).resolve()
@@ -174,20 +240,25 @@ def convert(
         raise ValueError(f"Unsupported output format: {target}")
 
     media = probe(source)
-    command = ["ffmpeg", "-hide_banner", "-i", str(source), "-map_metadata", "0"]
+    command = ["ffmpeg", "-hide_banner", "-nostats", "-progress", "pipe:1", "-i", str(source), "-map_metadata", "0"]
+    mode = "Preparing output"
 
     if target == "mp4":
         compat = x_compatibility(media)
         video = media.get("video") or {}
         audio = media.get("audio") or {}
-        general_copy_safe = video.get("codec") == "h264" and video.get("pixelFormat") == "yuv420p"
+        general_copy_safe = video.get("codec") in MP4_COPY_CODECS
         if (x_compatible and compat["videoCopySafe"]) or (not x_compatible and general_copy_safe):
             command += ["-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy"]
+            mode = "Saving MP4 without re-encoding video"
+            if video.get("codec") == "hevc":
+                command += ["-tag:v", "hvc1"]
         else:
             command += [
                 "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264",
-                "-preset", "medium", "-crf", "14", "-pix_fmt", "yuv420p",
+                "-preset", "veryfast", "-crf", "14", "-pix_fmt", "yuv420p",
             ]
+            mode = "Converting video to H.264"
             if x_compatible:
                 command += [
                     "-vf",
@@ -206,6 +277,7 @@ def convert(
         command += ["-movflags", "+faststart"]
     elif target == "mkv":
         command += ["-map", "0", "-c", "copy"]
+        mode = "Saving MKV without re-encoding"
     elif target == "webm":
         video_codec = (media.get("video") or {}).get("codec")
         audio_codec = (media.get("audio") or {}).get("codec")
@@ -225,11 +297,29 @@ def convert(
         command += ["-map", "0:a:0", "-vn", "-c:a", "pcm_s24le"]
 
     command += ["-y", str(output)]
-    run(command, on_line)
+    _log.info("%s: input codec=%s, canvas=%sx%s, fps=%s, duration=%ss", mode,
+              (media.get("video") or {}).get("codec"), (media.get("video") or {}).get("width"),
+              (media.get("video") or {}).get("height"), (media.get("video") or {}).get("fps"), media.get("duration"))
+    def report(line):
+        if on_line:
+            on_line(line)
+        if on_progress and line.startswith("Waiting for another media operation"):
+            on_progress(0., line)
+        if on_progress and line.startswith("out_time_us="):
+            try:
+                ratio = float(line.split("=", 1)[1]) / 1_000_000 / max(float(media["duration"]), .01)
+                on_progress(max(0., min(.99, ratio)), mode)
+            except (ValueError, KeyError):
+                pass
+        elif on_progress and line == "progress=end":
+            on_progress(1., mode)
+    if on_progress:
+        on_progress(0., mode)
+    run(command, report, check_cancelled=check_cancelled)
     return output
 
 
-def embed_subtitle(input_path, subtitle_path, output_path, *, language, title, on_line=None) -> Path:
+def embed_subtitle(input_path, subtitle_path, output_path, *, language, title, on_line=None, check_cancelled=None) -> Path:
     """Remux one switchable caption track; copy the video and audio verbatim."""
     from yt_dlp.utils import ISO639Utils
 
@@ -243,7 +333,7 @@ def embed_subtitle(input_path, subtitle_path, output_path, *, language, title, o
                "-metadata:s:s:0", f"title={title}", "-disposition:s:0", "default"]
     if output.suffix.lower() in {".mp4", ".mov"}:
         command += ["-movflags", "+faststart"]
-    run([*command, "-y", str(output)], on_line)
+    run([*command, "-y", str(output)], on_line, check_cancelled=check_cancelled)
     if len(probe(output)["subtitles"]) != 1:
         raise RuntimeError("The downloaded video could not be verified with the selected subtitles")
     return output

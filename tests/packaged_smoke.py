@@ -141,7 +141,7 @@ def main():
                 # including the minimal native host, without external websites.
                 subprocess.run([str(media_tools/"ffmpeg.exe"), "-v", "error", "-f", "lavfi", "-i",
                     "testsrc2=size=160x90:rate=10:duration=1", "-f", "lavfi", "-i", "sine=duration=1",
-                    "-shortest", "-c:v", "libx264", "-c:a", "aac", str(root/"caption-source.mp4")], env=env, check=True, capture_output=True)
+                    "-shortest", "-c:v", "libaom-av1", "-cpu-used", "8", "-threads", "2", "-c:a", "aac", str(root/"caption-source.mp4")], env=env, check=True, capture_output=True)
                 (root/"fr.vtt").write_text("WEBVTT\n\n00:00.000 --> 00:00.900\nBonjour de ClipHarbor\n", encoding="utf-8")
                 (root/"caption.html").write_text('<title>Caption smoke</title><video src="caption-source.mp4"><track kind="subtitles" srclang="fr" label="French" src="fr.vtt"></video>', encoding="utf-8")
                 caption_url=f"http://127.0.0.1:{source_server.server_port}/caption.html"
@@ -156,6 +156,7 @@ def main():
                 assert captioned["status"] == "completed", captioned
                 assert captioned["result"]["subtitleTrack"]["language"] == "fr"
                 assert captioned["result"]["media"]["subtitles"][0]["codec"] == "mov_text"
+                assert captioned["result"]["media"]["video"]["codec"] == "av1", "MP4 save must keep supported source video without encoding to H.264"
             finally:
                 source_server.shutdown()
                 source_server.server_close()

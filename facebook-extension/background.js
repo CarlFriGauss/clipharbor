@@ -5,7 +5,7 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function native(action,fields={}) {
   let result;
   try { result=await chrome.runtime.sendNativeMessage(HOST,{protocol:1,action,...fields}); }
-  catch { throw new Error("Install ClipHarbor 0.9.0 or newer and reopen the app. Its local bridge is unavailable."); }
+  catch { throw new Error("Install ClipHarbor 0.9.1 or newer and reopen the app. Its local bridge is unavailable."); }
   if(!result?.ok) throw new Error(result?.error||"ClipHarbor is unavailable.");
   return result;
 }

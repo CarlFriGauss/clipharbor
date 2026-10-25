@@ -3,7 +3,7 @@ import {HOST, ACTIVE, cleanUrl, contextUrl} from "./shared.js";
 async function native(action, fields = {}) {
   let response;
   try { response = await chrome.runtime.sendNativeMessage(HOST, {protocol: 1, action, ...fields}); }
-  catch { throw new Error("ClipHarbor's browser bridge is unavailable. Install ClipHarbor 0.9.0 or newer, then try again. Source users: register the bridge first."); }
+  catch { throw new Error("ClipHarbor's browser bridge is unavailable. Install ClipHarbor 0.9.1 or newer, then try again. Source users: register the bridge first."); }
   if (!response?.ok) throw new Error(response?.error || "ClipHarbor could not complete the request.");
   return response;
 }

@@ -444,6 +444,11 @@ def create_app() -> Flask:
             return jsonify({"error": "Job not found"}), 404
         return jsonify(job.public())
 
+    @app.post("/api/jobs/<job_id>/cancel")
+    def cancel_download(job_id: str):
+        _json()
+        return jsonify(jobs.cancel(job_id).public())
+
     @app.get("/api/media/<token>")
     def media(token: str):
         path = registry.get(token)

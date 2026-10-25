@@ -65,7 +65,7 @@ def main() -> int:
     root.mkdir(parents=True, exist_ok=True)
     logs = root / "logs"
     logs.mkdir(exist_ok=True)
-    logging.basicConfig(level=logging.INFO, handlers=[RotatingFileHandler(
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s:%(name)s:%(message)s", handlers=[RotatingFileHandler(
         logs / "clipharbor.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8")])
     lock = InstanceLock(root / "instance.lock")
     info_path = root / "instance.json"
