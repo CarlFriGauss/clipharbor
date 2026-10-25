@@ -52,7 +52,10 @@ function update() {
   $("inspect").disabled=!connected||busy||!cleanUrl($("url").value);
   const audioOnly=["mp3","m4a","wav"].includes($("format").value);
   $("subtitleTrack").disabled=audioOnly;
-  $("subtitleHelp").textContent=audioOnly?"Subtitles require a video format.":"Switchable subtitles inside the video.";
+  const selected=!audioOnly&&$("subtitleTrack").value!=="", burn=$("subtitleMode").value==="burn";
+  $("subtitleModeField").hidden=!selected;$("burnSizeField").hidden=!selected||!burn;
+  $("subtitleHelp").textContent=audioOnly?"Subtitles require a video format.":!selected?"Choose a language to include subtitles.":burn?"Text is permanently visible. Burning requires video encoding; source size keeps resolution and frame rate, not the original bitstream.":"Switchable track inside the video. Turn subtitles on in a compatible player.";
+  if(selected&&burn&&$("format").value==="original")$("subtitleHelp").textContent+=" Original source with burning saves an encoded MKV.";
 }
 async function openApp(view = "activity") {
   try { await request("open", {view}); }
@@ -103,7 +106,7 @@ async function currentPage() {
 }
 $("candidate").addEventListener("change", () => { $("url").value = $("candidate").value; clearTracks();update(); });
 $("url").addEventListener("input",clearTracks);
-for (const id of ["url", "format", "destination"]) $(id).addEventListener("input", update);
+for (const id of ["url", "format", "destination", "subtitleTrack", "subtitleMode"]) $(id).addEventListener("input", update);
 $("openApp").addEventListener("click", () => openApp());
 $("connectDrive").addEventListener("click", () => openApp("drive"));
 $("inspect").addEventListener("click",async()=>{
@@ -146,7 +149,8 @@ $("downloadForm").addEventListener("submit", async event => {
     const choice=$("subtitleTrack").value;
     const subtitle=!$("subtitleTrack").disabled&&choice!==""?inspected?.subtitleTracks?.[Number(choice)]:null;
     await request("download", {url: $("url").value.trim(), outputFormat: $("format").value, destination: $("destination").value, xCompatible: $("xCompatible").checked,
-      audioFormatId:audio?.formatId||null,audioTrackLabel:audio?.label||null,subtitleLanguage:subtitle?.language||null,subtitleSource:subtitle?.source||"manual"});
+      audioFormatId:audio?.formatId||null,audioTrackLabel:audio?.label||null,subtitleLanguage:subtitle?.language||null,subtitleSource:subtitle?.source||"manual",
+      subtitleMode:$("subtitleMode").value,burnSize:$("burnSize").value});
     message("Download started. You can close this popup.");
   } catch (error) { message(error.message, true); }
   finally { busy = false; update(); await refresh(); }

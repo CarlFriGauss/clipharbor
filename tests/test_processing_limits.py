@@ -11,7 +11,51 @@ import pytest
 
 from mediaforge import ffmpeg, web
 from mediaforge.downloader import subtitle_tracks_from_info
+from mediaforge.downloader import fast_burn_video_format
 from mediaforge.jobs import JobManager, diagnostic_source
+
+
+def test_fast_burn_fetches_a_native_hd_stream_without_changing_the_audio_choice():
+    formats=[{'format_id':'4k','vcodec':'av1','acodec':'none','width':3840,'height':2160,'fps':60},
+        {'format_id':'hd60','vcodec':'av1','acodec':'none','width':1920,'height':1080,'fps':60},
+        {'format_id':'hd30av1','vcodec':'av1','acodec':'none','width':1920,'height':1080,'fps':30},
+        {'format_id':'hd30h264','vcodec':'avc1.640028','acodec':'none','width':1920,'height':1080,'fps':30},
+        {'format_id':'muxed-dub','vcodec':'h264','acodec':'aac','width':1920,'height':1080,'fps':30}]
+    assert fast_burn_video_format({'formats':formats})=='hd30h264'
+    assert fast_burn_video_format({'formats':formats[:2]}) is None
+
+
+@pytest.mark.integration
+def test_fast_burn_size_caps_portrait_video_fps_without_enlarging(tmp_path):
+    source=tmp_path/'portrait.mp4'
+    subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','color=black:size=212x402:rate=60:duration=0.3',
+        '-c:v','libx264','-threads','2','-y',str(source)],check=True,capture_output=True)
+    caption=tmp_path/'ar.srt';caption.write_text('1\n00:00:00,000 --> 00:00:01,000\nمرحبا بالعالم\n',encoding='utf-8')
+    out=tmp_path/'out.mp4'
+    ffmpeg.convert(source,out,'mp4',subtitle_path=caption,burn_size='1080')
+    video=ffmpeg.probe(out)['video']
+    assert (video['width'],video['height'])==(212,402) and video['fps']==pytest.approx(30,abs=.01)
+
+
+@pytest.mark.parametrize('size,scaled', [('source', False), ('1080', True)])
+def test_burning_explicitly_encodes_with_safe_caption_path_and_preserves_source_size(monkeypatch, tmp_path, size, scaled):
+    source=tmp_path/'video.mp4';source.touch()
+    caption=tmp_path/"Arabic ' commas, Windows path.srt"
+    caption.write_text('1\n00:00:00,000 --> 00:00:01,000\nمرحبا بالعالم\n',encoding='utf-8')
+    monkeypatch.setattr(ffmpeg,'probe',lambda p:{'duration':1,'video':{'codec':'av1','width':3840,'height':2160,'fps':60},'audio':{'codec':'aac','channels':2}})
+    observed=[]
+    def run(command,on_line,**kwargs):
+        assert (Path(kwargs['cwd'])/'captions.srt').read_text(encoding='utf-8')==caption.read_text(encoding='utf-8')
+        observed.append(command)
+    monkeypatch.setattr(ffmpeg,'run',run)
+    ffmpeg.convert(source,tmp_path/'out.mp4','mp4',subtitle_path=caption,burn_size=size)
+    command=observed[0]
+    assert command[command.index('-c:v')+1]=='libx264'
+    assert command[command.index('-c:a')+1]=='copy'
+    assert command[command.index('-tune')+1]=='zerolatency'
+    filter_string=command[command.index('-vf')+1]
+    assert 'subtitles=filename=captions.srt' in filter_string
+    assert ('scale=' in filter_string)==scaled and ('fps=' in filter_string)==scaled
 
 
 def test_av1_mp4_copy_preserves_resolution_fps_and_reports_progress(monkeypatch, tmp_path):

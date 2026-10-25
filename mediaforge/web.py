@@ -261,7 +261,17 @@ def create_app() -> Flask:
     def start_download():
         data = _json()
         subtitle_language = None if data.get("subtitleLanguage") == "" else data.get("subtitleLanguage")
-        validate_subtitle_selection(subtitle_language, data.get("subtitleSource", "manual"), str(data.get("outputFormat", "original")))
+        validate_subtitle_selection(subtitle_language, data.get("subtitleSource", "manual"), str(data.get("outputFormat", "original")),
+                                    mode=data.get("subtitleMode", "embed"), burn_size=data.get("burnSize", "source"))
+        existing_media_path = None
+        if data.get("sourceToken"):
+            if not subtitle_language:
+                raise ValueError("Choose a subtitle language for the existing video")
+            existing_media_path = registry.get(str(data["sourceToken"]))
+            if not existing_media_path or not existing_media_path.is_file() or not probe(existing_media_path).get("video"):
+                raise ValueError("The existing video is no longer available. Open it again.")
+            if data.get("audioFormatId"):
+                raise ValueError("An existing video keeps its own audio; do not select another audio track")
         provider = str(data.get("destination", "local"))
         options = data.get("deliveryOptions") or {}
         if provider not in {"local", "drive"}:
@@ -285,6 +295,9 @@ def create_app() -> Flask:
             audio_track_label=str(data.get("audioTrackLabel")) if data.get("audioTrackLabel") else None,
             subtitle_language=subtitle_language,
             subtitle_source=data.get("subtitleSource", "manual"),
+            subtitle_mode=data.get("subtitleMode", "embed"),
+            burn_size=data.get("burnSize", "source"),
+            existing_media_path=str(existing_media_path) if existing_media_path else None,
             cookie_file=data.get("cookieFile") or None,
             register=registry.add,
         )

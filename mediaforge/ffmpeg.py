@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -37,7 +38,7 @@ def bounded_command(command: list[str]) -> list[str]:
     return [*result, "-threads", str(MEDIA_THREADS), command[-1]]
 
 
-def run(command: list[str], on_line: Callable[[str], None] | None = None, *, check_cancelled=None) -> None:
+def run(command: list[str], on_line: Callable[[str], None] | None = None, *, check_cancelled=None, cwd=None) -> None:
     command = bounded_command(command)
     if check_cancelled:
         check_cancelled()
@@ -61,6 +62,7 @@ def run(command: list[str], on_line: Callable[[str], None] | None = None, *, che
             encoding="utf-8",
             errors="replace",
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0),
+            cwd=cwd,
         )
         if hasattr(os, "setpriority"):
             try:
@@ -232,7 +234,27 @@ def convert(
     on_line: Callable[[str], None] | None = None,
     on_progress: Callable[[float, str], None] | None = None,
     check_cancelled=None,
+    subtitle_path: str | Path | None = None,
+    burn_size: str = "source",
 ) -> Path:
+    if burn_size not in {"source", "1080"}:
+        raise ValueError("Choose source size or 1080p for burned subtitles")
+    if subtitle_path:
+        if target.lower() in AUDIO_FORMATS:
+            raise ValueError("Burned subtitles require video output")
+        # A fixed relative name avoids filter parsing of Windows drive letters,
+        # apostrophes, commas and other characters in user-selected paths.
+        with tempfile.TemporaryDirectory(prefix="clipharbor-captions-") as temporary:
+            shutil.copyfile(subtitle_path, Path(temporary) / "captions.srt")
+            return _convert(input_path, output_path, target, x_compatible=x_compatible,
+                on_line=on_line, on_progress=on_progress, check_cancelled=check_cancelled,
+                burn_size=burn_size, caption_cwd=temporary)
+    return _convert(input_path, output_path, target, x_compatible=x_compatible,
+        on_line=on_line, on_progress=on_progress, check_cancelled=check_cancelled)
+
+
+def _convert(input_path, output_path, target, *, x_compatible=False, on_line=None,
+             on_progress=None, check_cancelled=None, burn_size="source", caption_cwd=None):
     source = Path(input_path).resolve()
     output = Path(output_path).resolve()
     target = target.lower()
@@ -242,13 +264,14 @@ def convert(
     media = probe(source)
     command = ["ffmpeg", "-hide_banner", "-nostats", "-progress", "pipe:1", "-i", str(source), "-map_metadata", "0"]
     mode = "Preparing output"
+    filters = []
 
     if target == "mp4":
         compat = x_compatibility(media)
         video = media.get("video") or {}
         audio = media.get("audio") or {}
         general_copy_safe = video.get("codec") in MP4_COPY_CODECS
-        if (x_compatible and compat["videoCopySafe"]) or (not x_compatible and general_copy_safe):
+        if not caption_cwd and ((x_compatible and compat["videoCopySafe"]) or (not x_compatible and general_copy_safe)):
             command += ["-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy"]
             mode = "Saving MP4 without re-encoding video"
             if video.get("codec") == "hevc":
@@ -260,34 +283,37 @@ def convert(
             ]
             mode = "Converting video to H.264"
             if x_compatible:
-                command += [
-                    "-vf",
+                filters.append(
                     "fps=min(source_fps\\,40),"
                     "scale=w='if(gte(iw,ih),min(iw,1920),min(iw,1200))':"
                     "h='if(gte(iw,ih),min(ih,1200),min(ih,1900))':"
                     "force_original_aspect_ratio=decrease,"
                     "pad=w='ceil(max(iw,ih/2.39)/2)*2':h='ceil(max(ih,iw/2.39)/2)*2':"
-                    "x=(ow-iw)/2:y=(oh-ih)/2:color=black",
-                    "-profile:v", "high", "-maxrate", "25M", "-bufsize", "50M",
-                ]
+                    "x=(ow-iw)/2:y=(oh-ih)/2:color=black")
+                command += ["-profile:v", "high", "-maxrate", "25M", "-bufsize", "50M"]
         if audio.get("codec") == "aac" and int(audio.get("channels") or 0) <= 2:
             command += ["-c:a", "copy"]
         else:
             command += ["-c:a", "aac", "-profile:a", "aac_low", "-b:a", "192k", "-ac", "2"]
         command += ["-movflags", "+faststart"]
     elif target == "mkv":
-        command += ["-map", "0", "-c", "copy"]
-        mode = "Saving MKV without re-encoding"
+        if caption_cwd:
+            command += ["-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy"]
+        else:
+            command += ["-map", "0", "-c", "copy"]
+            mode = "Saving MKV without re-encoding"
     elif target == "webm":
         video_codec = (media.get("video") or {}).get("codec")
         audio_codec = (media.get("audio") or {}).get("codec")
         command += ["-map", "0:v:0", "-map", "0:a:0?"]
-        command += ["-c:v", "copy"] if video_codec in {"vp8", "vp9", "av1"} else ["-c:v", "libvpx-vp9", "-crf", "18", "-b:v", "0"]
+        command += ["-c:v", "copy"] if not caption_cwd and video_codec in {"vp8", "vp9", "av1"} else ["-c:v", "libvpx-vp9", "-crf", "18", "-b:v", "0"]
+        if caption_cwd:
+            command += ["-deadline", "realtime", "-cpu-used", "6"]
         command += ["-c:a", "copy"] if audio_codec in {"opus", "vorbis"} else ["-c:a", "libopus", "-b:a", "160k"]
     elif target == "mov":
         command += [
             "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264", "-crf", "17",
-            "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+            "-preset", "veryfast" if caption_cwd else "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
         ]
     elif target == "mp3":
         command += ["-map", "0:a:0", "-vn", "-c:a", "libmp3lame", "-q:a", "0"]
@@ -296,6 +322,20 @@ def convert(
     elif target == "wav":
         command += ["-map", "0:a:0", "-vn", "-c:a", "pcm_s24le"]
 
+    if caption_cwd:
+        if "libx264" in command:
+            # Avoid holding a 4K lookahead/B-frame queue merely to overlay text.
+            # Keep the requested canvas, frame rate and CRF while bounding RAM.
+            command += ["-tune", "zerolatency"]
+        if burn_size == "1080":
+            filters.append("fps=min(source_fps\\,30),"
+                "scale=w='if(gte(iw,ih),min(iw,1920),min(iw,1080))':"
+                "h='if(gte(iw,ih),min(ih,1080),min(ih,1920))':"
+                "force_original_aspect_ratio=decrease:force_divisible_by=2")
+        filters.append("subtitles=filename=captions.srt:charenc=UTF-8:force_style='FontName=Arial,FontSize=16,Outline=1.2,Shadow=0,MarginV=12,Alignment=2'")
+        mode = "Burning subtitles into video" + (" · 1080p/30 max" if burn_size == "1080" else " · source size")
+    if filters:
+        command += ["-vf", ",".join(filters)]
     command += ["-y", str(output)]
     _log.info("%s: input codec=%s, canvas=%sx%s, fps=%s, duration=%ss", mode,
               (media.get("video") or {}).get("codec"), (media.get("video") or {}).get("width"),
@@ -315,7 +355,7 @@ def convert(
             on_progress(1., mode)
     if on_progress:
         on_progress(0., mode)
-    run(command, report, check_cancelled=check_cancelled)
+    run(command, report, check_cancelled=check_cancelled, cwd=caption_cwd)
     return output
 
 

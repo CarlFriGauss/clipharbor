@@ -18,9 +18,13 @@ _output_lock = threading.Lock()
 _SUBTITLE_EXTS = {"srt", "vtt", "ass", "ssa", "ttml", "dfxp", "tt"}
 
 
-def validate_subtitle_selection(language: str | None, source: str, output_format: str) -> None:
+def validate_subtitle_selection(language: str | None, source: str, output_format: str, *, mode="embed", burn_size="source") -> None:
     if not isinstance(source, str) or source not in {"manual", "automatic"}:
         raise ValueError("Choose creator subtitles or automatic captions")
+    if not isinstance(mode, str) or mode not in {"embed", "burn"}:
+        raise ValueError("Choose burned-in or switchable subtitles")
+    if not isinstance(burn_size, str) or burn_size not in {"source", "1080"}:
+        raise ValueError("Choose source size or 1080p for burned subtitles")
     if language is None:
         return
     if (not isinstance(language, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", language)
@@ -175,6 +179,21 @@ def download_format_selector(target_format: str, audio_format_id: str | None = N
     return f"bestvideo+{audio_format_id}"
 
 
+def fast_burn_video_format(info):
+    """Prefer a native HD/30 stream over decoding 4K when HD is requested."""
+    candidates = [f for f in info.get("formats") or []
+                  if f.get("vcodec") not in (None, "none") and f.get("acodec") in (None, "none")
+                  and 0 < int(f.get("width") or 0) <= 1920 and 0 < int(f.get("height") or 0) <= 1920
+                  and min(int(f["width"]), int(f["height"])) <= 1080 and float(f.get("fps") or 30) <= 30
+                  and re.fullmatch(r"[A-Za-z0-9._+-]+", str(f.get("format_id") or ""))]
+    if not candidates:
+        return None
+    pixels = max(int(f["width"]) * int(f["height"]) for f in candidates)
+    candidates = [f for f in candidates if int(f["width"]) * int(f["height"]) == pixels]
+    h264 = [f for f in candidates if str(f["vcodec"]).startswith(("avc1", "h264"))]
+    return max(h264 or candidates, key=lambda f: (float(f.get("fps") or 0), float(f.get("tbr") or 0)))["format_id"]
+
+
 def inspect_url(url: str, cookie_file: str | None = None) -> dict[str, Any]:
     if not url.startswith(("http://", "https://")):
         raise ValueError("Enter a complete http:// or https:// media URL")
@@ -228,6 +247,9 @@ def download(
     audio_track_label: str | None = None,
     subtitle_language: str | None = None,
     subtitle_source: str = "manual",
+    subtitle_mode: str = "embed",
+    burn_size: str = "source",
+    existing_media_path: str | None = None,
     cookie_file: str | None = None,
     register: Callable[[Path], str],
 ) -> dict[str, Any]:
@@ -238,8 +260,12 @@ def download(
         raise ValueError("X compatibility can only be requested for MP4 video")
     if not url.startswith(("http://", "https://")):
         raise ValueError("Enter a complete media URL")
-    validate_subtitle_selection(subtitle_language, subtitle_source, target_format)
+    validate_subtitle_selection(subtitle_language, subtitle_source, target_format, mode=subtitle_mode, burn_size=burn_size)
     download_format_selector(target_format, audio_format_id)
+    if existing_media_path and (not subtitle_language or not Path(existing_media_path).is_file()):
+        raise ValueError("Choose an existing video and a subtitle language")
+    if existing_media_path and audio_format_id:
+        raise ValueError("An existing video keeps its own audio; do not select another audio track")
 
     destination = Path(output_directory).expanduser().resolve()
     destination.mkdir(parents=True, exist_ok=True)
@@ -250,11 +276,13 @@ def download(
                          target_format=target_format, x_compatible=x_compatible,
                          audio_format_id=audio_format_id, audio_track_label=audio_track_label,
                          subtitle_language=subtitle_language, subtitle_source=subtitle_source,
+                         subtitle_mode=subtitle_mode, burn_size=burn_size, existing_media_path=existing_media_path,
                          cookie_file=cookie_file, register=register)
 
 
 def _download(context, *, url, destination, working, target_format, x_compatible,
-              audio_format_id, audio_track_label, subtitle_language, subtitle_source, cookie_file, register):
+              audio_format_id, audio_track_label, subtitle_language, subtitle_source, subtitle_mode,
+              burn_size, existing_media_path, cookie_file, register):
     context.update(1, "Reading source metadata")
     observed: list[Path] = []
 
@@ -293,6 +321,7 @@ def _download(context, *, url, destination, working, target_format, x_compatible
         "windowsfilenames": True,
         "writesubtitles": bool(subtitle_language and subtitle_source == "manual"),
         "writeautomaticsub": bool(subtitle_language and subtitle_source == "automatic"),
+        "skip_download": bool(existing_media_path),
     }
     if subtitle_language:
         options.update(subtitleslangs=[f"^{re.escape(subtitle_language)}$"],
@@ -329,6 +358,13 @@ def _download(context, *, url, destination, working, target_format, x_compatible
                     selected_format = audio_format_id
                 ydl.params["format"] = selected_format
                 ydl.format_selector = ydl.build_format_selector(selected_format)
+            if subtitle_language and subtitle_mode == "burn" and burn_size == "1080" and not existing_media_path:
+                audio_is_muxed = audio_format_id and selected_audio.get("vcodec") not in (None, "none")
+                video_format = fast_burn_video_format(info)
+                if video_format and not audio_is_muxed:
+                    selected_format = f"{video_format}+{audio_format_id or 'bestaudio'}/{video_format}"
+                    ydl.params["format"] = selected_format
+                    ydl.format_selector = ydl.build_format_selector(selected_format)
             try:
                 info = ydl.process_ie_result(info, download=True)
             except yt_dlp.utils.DownloadError as error:
@@ -347,6 +383,12 @@ def _download(context, *, url, destination, working, target_format, x_compatible
         subtitle_file = Path(subtitle_data["filepath"]).resolve() if subtitle_data.get("filepath") else None
         if not subtitle_file or not subtitle_file.is_file() or subtitle_file.parent != working.resolve():
             raise RuntimeError("The selected subtitles could not be downloaded. No video without the requested subtitles was saved.")
+        if subtitle_file.suffix.lower() != ".srt":
+            from .ffmpeg import run
+            converted_subtitle = working / "selected-captions.srt"
+            run(["ffmpeg", "-hide_banner", "-i", str(subtitle_file), "-c:s", "srt", "-y", str(converted_subtitle)],
+                context.write, check_cancelled=getattr(context, "check_cancelled", None))
+            subtitle_file = converted_subtitle
 
     def is_media(path):
         return (path.is_file() and path.parent.resolve() == working.resolve()
@@ -360,20 +402,24 @@ def _download(context, *, url, destination, working, target_format, x_compatible
         candidates = [p.resolve() for p in observed if is_media(p)]
     if not candidates:
         candidates = [p for p in working.iterdir() if is_media(p)]
-    if not candidates:
+    if not candidates and not existing_media_path:
         raise RuntimeError("yt-dlp completed but the downloaded file could not be located")
-    source = primary_candidates[0] if primary_candidates else max(candidates, key=lambda p: p.stat().st_mtime)
-    title = _safe_title(info.get("title") or source.stem.replace(" [source]", ""))
+    source = Path(existing_media_path).resolve() if existing_media_path else (primary_candidates[0] if primary_candidates else max(candidates, key=lambda p: p.stat().st_mtime))
+    title = _safe_title((f"{source.stem} [{selected_subtitle['label']} {'burned-in' if subtitle_mode == 'burn' else 'subtitles'}]")
+                        if existing_media_path else info.get("title") or source.stem.replace(" [source]", ""))
     final_path = source
     converted = False
     skipped_x_conversion = False
 
-    if target_format != "original":
-        output = working / f"converted.{target_format}"
+    burn = bool(subtitle_file and subtitle_mode == "burn")
+    if target_format != "original" or burn:
+        render_format = target_format if target_format != "original" else "mkv"
+        output = working / f"converted.{render_format}"
         context.update(82, f"Rendering {target_format.upper()} output")
-        convert(source, output, target_format, x_compatible=x_compatible, on_line=context.write,
+        convert(source, output, render_format, x_compatible=x_compatible, on_line=context.write,
                 on_progress=lambda ratio, mode: context.update(82 + ratio * 13, f"{mode} · {ratio:.0%}"),
-                check_cancelled=getattr(context, "check_cancelled", None))
+                check_cancelled=getattr(context, "check_cancelled", None),
+                subtitle_path=subtitle_file if burn else None, burn_size=burn_size)
         final_path = output
         converted = True
 
@@ -388,7 +434,7 @@ def _download(context, *, url, destination, working, target_format, x_compatible
             final_path = checked_path
         skipped_x_conversion = not changed
 
-    if subtitle_file:
+    if subtitle_file and not burn:
         context.update(97, "Adding the selected subtitles without re-encoding video")
         extension = final_path.suffix.lstrip(".").lower()
         if extension not in {"mp4", "mkv", "mov", "webm"}:
@@ -415,4 +461,6 @@ def _download(context, *, url, destination, working, target_format, x_compatible
         "xConversionSkipped": skipped_x_conversion,
         "audioTrack": audio_track_label or None,
         "subtitleTrack": selected_subtitle,
+        "subtitleRendering": subtitle_mode if selected_subtitle else None,
+        "burnSize": burn_size if burn else None,
     }
