@@ -174,6 +174,8 @@ def handle(message):
             raise BridgeError("Choose a supported format and destination.")
         # Keep the messaging host free of downloader/FFmpeg imports.
         audio, subtitle, source = message.get("audioFormatId"), message.get("subtitleLanguage"), message.get("subtitleSource", "manual")
+        if message.get("subtitleMode", "embed") not in ("burn", "embed") or message.get("burnSize", "source") not in ("source", "1080"):
+            raise BridgeError("Choose a supported subtitle display and video size.")
         if (audio is not None and (not isinstance(audio, str) or not re.fullmatch(r"[A-Za-z0-9._+-]+", audio))
                 or not isinstance(source, str) or source not in {"manual", "automatic"}
                 or subtitle is not None and (not isinstance(subtitle, str)
@@ -192,11 +194,11 @@ def handle(message):
     else:
         client, health = ensure_desktop()
     try:
-        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 9, 1)
+        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 9, 2)
     except (KeyError, ValueError, AttributeError):
         compatible = False
     if not compatible:
-        raise BridgeError("Quit the older ClipHarbor app, install version 0.9.1 or newer, then try again.")
+        raise BridgeError("Quit the older ClipHarbor app, install version 0.9.2 or newer, then try again.")
     if action == "status":
         drive = client.api("/api/connections")["drive"]
         return {"version": health["version"], "settings": settings(),
@@ -209,7 +211,8 @@ def handle(message):
         job = client.api("/api/downloads", {"url": url, **prefs,
             "deliveryOptions": {}, "xCompatible": prefs["outputFormat"] == "mp4" and prefs["xCompatible"],
             "audioFormatId": message.get("audioFormatId"), "audioTrackLabel": str(message.get("audioTrackLabel") or "")[:200],
-            "subtitleLanguage": message.get("subtitleLanguage"), "subtitleSource": message.get("subtitleSource", "manual")})
+            "subtitleLanguage": message.get("subtitleLanguage"), "subtitleSource": message.get("subtitleSource", "manual"),
+            "subtitleMode": message.get("subtitleMode", "embed"), "burnSize": message.get("burnSize", "source")})
         save_settings(prefs)
         return {"job": public_job(job)}
     if action == "job":

@@ -87,6 +87,32 @@ def test_route_preserves_exact_caption_source_and_language(monkeypatch, tmp_path
     assert captured[0]["audio_format_id"] == "140-2"
 
 
+@pytest.mark.parametrize("field,value", [("subtitleMode", "unknown"), ("subtitleMode", []), ("burnSize", "4k"), ("burnSize", {})])
+def test_invalid_caption_rendering_is_rejected_before_start(monkeypatch, tmp_path, field, value):
+    monkeypatch.setattr(web.jobs, "start", lambda *a, **k: pytest.fail("Invalid rendering started a job"))
+    response = web.create_app().test_client().post("/api/downloads", json={
+        "url": "https://example.test/video", "outputDirectory": str(tmp_path), "outputFormat": "mp4",
+        "subtitleLanguage": "ar", field: value})
+    assert response.status_code == 400
+
+
+@pytest.mark.integration
+def test_route_reuses_only_a_registered_video_and_keeps_its_audio(media_site, tmp_path, monkeypatch):
+    root, base = media_site
+    client = web.create_app().test_client()
+    asset = client.post('/api/assets/register', json={'assets':[{'id':'existing','path':str(root/'source.mp4')}]}).json['assets'][0]
+    captured=[]
+    monkeypatch.setattr(web.jobs,'start',lambda *a,**k:(captured.append(k) or Job(id='test',kind='download')))
+    data={'url':base+'/index.html','outputDirectory':str(tmp_path),'outputFormat':'mp4',
+          'subtitleLanguage':'fr','subtitleMode':'burn','burnSize':'source','sourceToken':asset['token']}
+    assert client.post('/api/downloads',json=data).status_code==202
+    assert captured[-1]['existing_media_path']==str(root/'source.mp4')
+    assert captured[-1]['subtitle_mode']=='burn' and captured[-1]['burn_size']=='source'
+    for invalid in ({'sourceToken':'unknown'},{'audioFormatId':'dub'},{'subtitleLanguage':None}):
+        assert client.post('/api/downloads',json=data|invalid).status_code==400
+    assert len(captured)==1
+
+
 def test_removed_subtitle_stops_before_downloading_and_cleans_working_files(monkeypatch, tmp_path):
     class Source:
         def __init__(self, options):
@@ -212,6 +238,40 @@ def fixture_extractor(monkeypatch, info):
             super().__init__(options, auto_init=False)
             self.add_info_extractor(TrackFixtureIE())
     monkeypatch.setattr(downloader.yt_dlp, "YoutubeDL", FixtureYoutubeDL)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("container", ["mp4", "mkv", "mov", "webm", "original"])
+def test_burned_subtitles_are_video_pixels_not_a_switchable_track(media_site, tmp_path, container):
+    root, base = media_site
+    result = downloader.download(context(), url=base + "/index.html", output_directory=str(tmp_path),
+        output_format=container, subtitle_language="fr", subtitle_mode="burn", register=lambda p: "file")
+    assert result["subtitleRendering"] == "burn" and result["burnSize"] == "source"
+    assert result["media"]["subtitles"] == []
+    assert result["media"]["video"]["width"] == 160 and result["media"]["audio"]
+    def pixels(path):
+        return subprocess.check_output(["ffmpeg", "-v", "error", "-ss", "0.5", "-i", str(path),
+            "-frames:v", "1", "-vf", "crop=160:30:0:60,format=gray", "-f", "rawvideo", "pipe:1"])
+    # White caption outlines/text change the decoded picture, even with subtitles disabled.
+    original, burned = pixels(root / "source.mp4"), pixels(result["path"])
+    assert sum(abs(a - b) for a, b in zip(original, burned)) / len(original) > 3
+
+
+@pytest.mark.integration
+def test_caption_only_repair_keeps_existing_audio_and_never_downloads_video(media_site, tmp_path, monkeypatch):
+    root, base = media_site
+    original = (root / "source.mp4").read_bytes()
+    fixture_extractor(monkeypatch, {"id": "test", "title": "Reuse the existing video",
+        "formats": [{"format_id": "source", "url": base + "/must-not-request-this-video.mp4", "vcodec": "h264", "acodec": "aac"}],
+        "subtitles": {"fr": [{"url": base + "/fr.vtt", "ext": "vtt"}]}})
+    result = downloader.download(context(), url=base + "/track-fixture", output_directory=str(tmp_path),
+        output_format="mp4", subtitle_language="fr", subtitle_mode="burn", existing_media_path=str(root / "source.mp4"),
+        register=lambda p: "file")
+    assert result["subtitleRendering"] == "burn" and result["media"]["subtitles"] == []
+    assert (root / "source.mp4").read_bytes() == original
+    def audio(path):
+        return subprocess.check_output(["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:a:0", "-c", "copy", "-f", "adts", "pipe:1"])
+    assert audio(result["path"]) == audio(root / "source.mp4")
 
 
 @pytest.mark.integration

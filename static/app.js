@@ -66,8 +66,13 @@ function subtitleDescription(track) {
 }
 function updateSubtitleFormat() {
   const audioOnly=["mp3","m4a","wav"].includes($("#formatSelect").value);
+  const selected=!audioOnly&&$("#subtitleTrackSelect").value!=="";
+  const burn=$("#subtitleModeSelect").value==="burn";
   $("#subtitleTrackSelect").disabled=audioOnly;
-  $("#subtitleTrackHelp").textContent=audioOnly?"Subtitles require a video format.":"Saved inside the video as switchable subtitles. Use a player with subtitle support.";
+  $("#subtitleModeField").classList.toggle("hidden",!selected);
+  $("#burnSizeField").classList.toggle("hidden",!selected||!burn);
+  $("#subtitleTrackHelp").textContent=audioOnly?"Subtitles require a video format.":!selected?"Choose a language to include subtitles.":burn?"Text is permanently visible in every player. Burning requires video encoding; source size keeps the resolution and frame rate, not the original video bitstream.":"Saved inside the video as a switchable track. Turn subtitles on in a compatible player; video is copied when the format allows.";
+  if(selected&&burn&&$("#formatSelect").value==="original")$("#subtitleTrackHelp").textContent+=" Original source with burning saves an encoded MKV.";
 }
 function renderSourceTracks(info = {}) {
   renderAudioTracks(info);
@@ -113,6 +118,7 @@ async function startDownload() {
   const subtitleValue=$("#subtitleTrackSelect").value;
   const subtitle=!$("#subtitleTrackSelect").disabled&&subtitleValue!==""?state.inspected?.subtitleTracks?.[Number(subtitleValue)]:null;
   payload.subtitleLanguage=subtitle?.language||null;payload.subtitleSource=subtitle?.source||"manual";
+  payload.subtitleMode=$("#subtitleModeSelect").value;payload.burnSize=$("#burnSizeSelect").value;
   Object.assign(payload, downloadDeliveryPayload());
   if (!payload.url || (payload.destination === "local" && !payload.outputDirectory)) return toast("Missing download details", "Enter a URL and choose an output folder for local downloads.", true);
   if(payload.destination === "drive" && !connectionStatus.drive?.connected) return toast("Connect Google Drive", "Connect your account before starting a Drive download.", true);
@@ -150,7 +156,7 @@ function completeJob(job) {
   $("#completeTitle").textContent = facebookProfile ? "Video ready for Facebook" : cloudDownload ? "Saved to Google Drive" : finalMp4 ? "Final MP4 ready" : isDownload ? "Download complete" : job.result.delivery ? "Export complete" : job.kind === "upload" ? "Upload complete" : "Render complete";
   let note = finalMp4 ? `${media.name} · ${formatBytes(media.size)} · Ready to use. No editing or additional export is required.` : `${media.name} · ${formatBytes(media.size)}`;
   if(job.result.audioTrack)note+=` · Audio: ${job.result.audioTrack}.`;
-  if(job.result.subtitleTrack)note+=` · Subtitles: ${sourceLanguageLabel(job.result.subtitleTrack)} [${job.result.subtitleTrack.language}].`;
+  if(job.result.subtitleTrack)note+=` · Subtitles: ${sourceLanguageLabel(job.result.subtitleTrack)} [${job.result.subtitleTrack.language}] · ${job.result.subtitleRendering==="burn"?"burned into picture":"switchable track — turn on in your player"}.`;
   if (isDownload && job.result.xCompatible) note += job.result.xConversionSkipped ? " · Extra X conversion was unnecessary." : " · Verified for X.";
   if (!isDownload && job.result.xCompatible) note += " · Verified for X upload.";
   if(job.result.delivery) note += " · " + destinationNames[job.result.delivery.provider] + " · " + job.result.delivery.visibility;
@@ -702,6 +708,8 @@ function handleKeyboard(event) {
 function wireEvents() {
   $$(".nav-tab").forEach(tab=>tab.addEventListener("click",()=>setView(tab.dataset.view)));$("#inspectButton").addEventListener("click",inspectSource);$("#urlInput").addEventListener("keydown",event=>{if(event.key==="Enter")inspectSource();});$("#urlInput").addEventListener("input",clearSourceTracks);$("#cookiePath").addEventListener("input",clearSourceTracks);
   $("#formatSelect").addEventListener("change",event=>{$("#xOption").classList.toggle("hidden",event.target.value!=="mp4");updateSubtitleFormat();});
+  $("#subtitleTrackSelect").addEventListener("change",updateSubtitleFormat);
+  $("#subtitleModeSelect").addEventListener("change",updateSubtitleFormat);
   $("#browseOutput").addEventListener("click",async()=>{const data=await choose("folder");if(data.paths[0])$("#outputPath").value=data.paths[0];});$("#browseExport").addEventListener("click",async()=>{const data=await choose("folder");if(data.paths[0])$("#exportPath").value=data.paths[0];});$("#browseCookies").addEventListener("click",async()=>{const data=await choose("cookies");if(data.paths[0]){$("#cookiePath").value=data.paths[0];clearSourceTracks();}});
   $("#downloadButton").addEventListener("click",startDownload);$("#openMedia").addEventListener("click",openMedia);$("#assetList").addEventListener("click",event=>{const remove=event.target.closest("[data-remove-asset]");if(remove){event.stopPropagation();return removeAsset(remove.dataset.removeAsset);}const item=event.target.closest("[data-asset-id]");if(item)previewAsset(findAsset(item.dataset.assetId));else if(event.target.closest("#emptyAssetButton"))openMedia();});
   $("#addVideoClip").addEventListener("click",()=>addClip("video"));$("#addAudioClip").addEventListener("click",()=>addClip("audio"));$("#addVideoLayer").addEventListener("click",()=>addLayer("video"));$("#addAudioLayer").addEventListener("click",()=>addLayer("audio"));

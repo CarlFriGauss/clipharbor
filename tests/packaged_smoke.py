@@ -157,6 +157,21 @@ def main():
                 assert captioned["result"]["subtitleTrack"]["language"] == "fr"
                 assert captioned["result"]["media"]["subtitles"][0]["codec"] == "mov_text"
                 assert captioned["result"]["media"]["video"]["codec"] == "av1", "MP4 save must keep supported source video without encoding to H.264"
+                burn_job=extension("download", url=caption_url, destination="local", outputFormat="mp4", subtitleLanguage="fr", subtitleSource="manual", subtitleMode="burn", burnSize="source")["job"]
+                for _ in range(200):
+                    burned=api("/api/jobs/"+burn_job["id"])
+                    if burned["status"] not in ("queued", "running"):
+                        break
+                    time.sleep(.1)
+                assert burned["status"] == "completed", burned
+                assert burned["result"]["subtitleRendering"] == "burn"
+                assert burned["result"]["media"]["video"]["codec"] == "h264"
+                assert burned["result"]["media"]["subtitles"] == []
+                def frame(path):
+                    return subprocess.check_output([str(media_tools/"ffmpeg.exe"), "-v", "error", "-ss", "0.5", "-i", str(path),
+                        "-frames:v", "1", "-vf", "crop=160:30:0:60,format=gray", "-f", "rawvideo", "pipe:1"],env=env)
+                before,after=frame(root/"caption-source.mp4"),frame(burned["result"]["path"])
+                assert sum(abs(a-b) for a,b in zip(before,after))/len(before)>3, "Burned captions must change picture pixels"
             finally:
                 source_server.shutdown()
                 source_server.server_close()
@@ -185,7 +200,7 @@ def main():
                               "checks": ["isolated PATH", "authenticated launch", "publisher Google registration",
                                          "no bundled user account", "destination logos", "single instance", "save/open project",
                                          "first-run media tools", "waveform", "MP3 export", "export request deduplication", "inspect/download", "bundled Node", "native extension download",
-                                         "extension progress", "shared Activity", "caption inspection via native host", "embedded subtitle download", "cold engine startup", "clean quit"]}))
+                                         "extension progress", "shared Activity", "caption inspection via native host", "embedded subtitle download", "burned caption pixels via native host", "cold engine startup", "clean quit"]}))
         finally:
             if process.poll() is None:
                 process.terminate()

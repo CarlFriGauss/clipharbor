@@ -24,6 +24,7 @@ const ctx=vm.createContext({state,Intl,navigator:{language:'en'},$:id=>element(i
 vm.runInContext(app.slice(app.indexOf('function renderAudioTracks('),app.indexOf('function projectNameFromMedia(')),ctx);
 vm.runInContext(app.slice(app.indexOf('async function startDownload('),app.indexOf('function trackJob(')),ctx);
 element('#formatSelect').value='mp4';element('#urlInput').value=state.inspectedUrl;element('#cookiePath').value='';element('#outputPath').value='/downloads';
+element('#subtitleModeSelect').value='burn';element('#burnSizeSelect').value='source';
 
 (async()=>{
   ctx.renderSourceTracks(info);
@@ -33,6 +34,10 @@ element('#formatSelect').value='mp4';element('#urlInput').value=state.inspectedU
   await ctx.startDownload();assert.equal(submitted.subtitleLanguage,null,'None must not select track index zero');
   element('#subtitleTrackSelect').value='0';await ctx.startDownload();
   assert.equal(submitted.subtitleLanguage,'en');assert.equal(submitted.subtitleSource,'manual');
+  assert.equal(submitted.subtitleMode,'burn');assert.equal(submitted.burnSize,'source');
+  ctx.updateSubtitleFormat();assert.equal(element('#subtitleModeField').hidden,false);assert.equal(element('#burnSizeField').hidden,false);
+  element('#subtitleModeSelect').value='embed';ctx.updateSubtitleFormat();assert.equal(element('#burnSizeField').hidden,true);
+  await ctx.startDownload();assert.equal(submitted.subtitleMode,'embed');
   element('#subtitleTrackSelect').value='1';await ctx.startDownload();
   assert.equal(submitted.subtitleLanguage,'fr');assert.equal(submitted.subtitleSource,'automatic');
   element('#formatSelect').value='mp3';ctx.updateSubtitleFormat();await ctx.startDownload();
@@ -53,11 +58,13 @@ element('#formatSelect').value='mp4';element('#urlInput').value=state.inspectedU
     ACTIVE:new Set(['queued','running']),Option:function(text,value){this.textContent=text;this.value=value;},setInterval(){},document:{getElementById:element}});
   const code=fs.readFileSync('browser-extension/popup.js','utf8').replace(/^import[^\n]*\n/,'').replace('init(); setInterval(refresh, 3000);','');
   vm.runInContext(code,popup);await popup.init();await element('inspect').listeners.click();
+  element('subtitleMode').value='burn';element('burnSize').value='source';
   assert.equal(element('subtitleField').hidden,false);assert.equal(element('subtitleTrack').value,'');
   element('subtitleTrack').value='1';element('audioTrack').value='es';
   await element('downloadForm').listeners.submit({preventDefault(){}});
   assert.equal(messages.findLast(x=>x.action==='download').subtitleLanguage,'fr');
   assert.equal(messages.findLast(x=>x.action==='download').audioFormatId,'es');
+  assert.equal(messages.findLast(x=>x.action==='download').subtitleMode,'burn');assert.equal(messages.findLast(x=>x.action==='download').burnSize,'source');
   element('format').value='mp3';popup.update();await element('downloadForm').listeners.submit({preventDefault(){}});
   assert.equal(messages.findLast(x=>x.action==='download').subtitleLanguage,null);
   element('url').value='https://example.test/new';element('url').listeners.input();popup.update();

@@ -135,9 +135,9 @@ class JobManager:
         kwargs: dict[str, Any],
     ) -> None:
         self.update(job_id, status="running", message="Starting")
-        _log.info("Job %s (%s) started: source=%s, format=%s, X-compatible=%s, audio=%s, subtitle=%s/%s", job_id,
+        _log.info("Job %s (%s) started: source=%s, format=%s, X-compatible=%s, audio=%s, subtitle=%s/%s, subtitle-display=%s, burn-size=%s", job_id,
                   self._jobs[job_id].kind, diagnostic_source(str(kwargs.get("url") or "")),
-                  kwargs.get("output_format"), kwargs.get("x_compatible"), kwargs.get("audio_format_id"), kwargs.get("subtitle_source"), kwargs.get("subtitle_language"))
+                  kwargs.get("output_format"), kwargs.get("x_compatible"), kwargs.get("audio_format_id"), kwargs.get("subtitle_source"), kwargs.get("subtitle_language"), kwargs.get("subtitle_mode", "embed"), kwargs.get("burn_size", "source"))
         try:
             JobContext(self, job_id).check_cancelled()
             result = target(JobContext(self, job_id), *args, **kwargs)

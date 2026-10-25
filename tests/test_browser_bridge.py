@@ -107,9 +107,10 @@ def test_bridge_inspection_and_track_selection_share_the_desktop_backend(tmp_pat
     assert info["info"]["subtitleTracks"][0]["language"] == "fr"
     assert calls[0] == ("/api/inspect-url", {"url": "https://example.com/video"})
     bridge.handle({"protocol": 1, "action": "download", "url": "https://example.com/video", "destination": "local", "outputFormat": "mp4",
-                   "audioFormatId": "audio-es", "subtitleLanguage": "fr", "subtitleSource": "automatic"})
+                   "audioFormatId": "audio-es", "subtitleLanguage": "fr", "subtitleSource": "automatic", "subtitleMode": "burn", "burnSize": "source"})
     payload = calls[-1][1]
     assert payload["audioFormatId"] == "audio-es" and payload["subtitleLanguage"] == "fr" and payload["subtitleSource"] == "automatic"
+    assert payload["subtitleMode"] == "burn" and payload["burnSize"] == "source"
     assert "subtitleLanguage" not in bridge.settings(), "Track choices belong to one source, never the next URL"
 
 
@@ -118,6 +119,13 @@ def test_bridge_inspection_and_track_selection_share_the_desktop_backend(tmp_pat
 def test_bridge_invalid_tracks_cannot_start_engine(monkeypatch, fields):
     monkeypatch.setattr(bridge, "ensure_desktop", lambda: pytest.fail("Invalid tracks must not start the app"))
     with pytest.raises(bridge.BridgeError, match="valid audio"):
+        bridge.handle({"protocol": 1, "action": "download", "url": "https://example.com/video", "destination": "local", "outputFormat": "mp4", **fields})
+
+
+@pytest.mark.parametrize("fields", [{"subtitleMode": []}, {"subtitleMode": "bad"}, {"burnSize": {}}, {"burnSize": "bad"}])
+def test_bridge_invalid_render_modes_cannot_start_engine(monkeypatch, fields):
+    monkeypatch.setattr(bridge, "ensure_desktop", lambda: pytest.fail("Invalid mode must not start the app"))
+    with pytest.raises(bridge.BridgeError, match="subtitle display"):
         bridge.handle({"protocol": 1, "action": "download", "url": "https://example.com/video", "destination": "local", "outputFormat": "mp4", **fields})
 
 
