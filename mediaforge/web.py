@@ -263,6 +263,8 @@ def create_app() -> Flask:
         subtitle_language = None if data.get("subtitleLanguage") == "" else data.get("subtitleLanguage")
         validate_subtitle_selection(subtitle_language, data.get("subtitleSource", "manual"), str(data.get("outputFormat", "original")),
                                     mode=data.get("subtitleMode", "embed"), burn_size=data.get("burnSize", "source"))
+        if subtitle_language and data.get("subtitleMode") == "burn" and data.get("burnAcknowledged") is not True:
+            raise ValueError("Burn into picture re-encodes the original video. Reopen ClipHarbor and select it explicitly, or choose selectable subtitles to keep original quality.")
         existing_media_path = None
         if data.get("sourceToken"):
             if not subtitle_language:

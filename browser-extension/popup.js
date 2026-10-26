@@ -19,6 +19,7 @@ function clearTracks() {
   inspected=null;inspectedUrl=null;
   $("audioTrack").replaceChildren(new Option("Automatic / source default",""));
   $("subtitleTrack").replaceChildren(new Option("None",""));
+  $("subtitleMode").value="embed";$("burnSize").value="source";
   $("audioField").hidden=true;$("subtitleField").hidden=true;$("sourceInfo").hidden=true;
 }
 function renderTracks(info) {
@@ -28,6 +29,7 @@ function renderTracks(info) {
   const preferred=audio.find(track=>track.original)||audio.find(track=>track.default);
   if(preferred&&audio.length>1)$("audioTrack").value=preferred.formatId;
   $("subtitleTrack").replaceChildren(new Option("None",""),...subtitles.map((track,index)=>new Option(`${languageLabel(track)} [${track.language}] · ${subtitleDescription(track)}`,String(index))));
+  $("subtitleMode").value="embed";$("burnSize").value="source";
   $("subtitleField").hidden=!subtitles.length;
   $("sourceInfo").textContent=info.title+(/facebook/i.test(info.site||"")?" · Only languages Facebook exposes for download are listed.":"");
   $("sourceInfo").hidden=false;
@@ -54,7 +56,7 @@ function update() {
   $("subtitleTrack").disabled=audioOnly;
   const selected=!audioOnly&&$("subtitleTrack").value!=="", burn=$("subtitleMode").value==="burn";
   $("subtitleModeField").hidden=!selected;$("burnSizeField").hidden=!selected||!burn;
-  $("subtitleHelp").textContent=audioOnly?"Subtitles require a video format.":!selected?"Choose a language to include subtitles.":burn?"Text is permanently visible. Burning requires video encoding; source size keeps resolution and frame rate, not the original bitstream.":"Switchable track inside the video. Turn subtitles on in a compatible player.";
+  $("subtitleHelp").textContent=audioOnly?"Subtitles require a video format.":!selected?"Choose a language to include subtitles.":burn?"Burning changes video frames and re-encodes them. Keeping source size and frame rate does not preserve the original compressed quality. A 4K video can take much longer than its playback time.":"Selectable subtitles without encoding the original video or chosen audio again. Enable them in a compatible player.";
   if(selected&&burn&&$("format").value==="original")$("subtitleHelp").textContent+=" Original source with burning saves an encoded MKV.";
   const track=selected?inspected?.subtitleTracks?.[Number($("subtitleTrack").value)]:null;
   if(track?.translated&&/^youtube$/i.test(inspected?.site||""))$("subtitleHelp").textContent+=" YouTube translations need about a minute to prepare; Activity shows the countdown.";
@@ -68,10 +70,15 @@ function renderJobs(downloads) {
   const elements = downloads.slice(0, 10).map(job => {
     const article = document.createElement("article"), title = document.createElement("strong"), status = document.createElement("p");
     title.textContent = job.name || (job.destination === "drive" ? "Google Drive download" : "Video download");
-    status.textContent = job.status === "failed" ? job.error || "Download failed" : `${job.message || job.status}${ACTIVE.has(job.status) ? ` · ${Math.round(job.progress || 0)}%` : ""}`;
+    const progress=downloadStageProgress(job);
+    status.textContent = job.status === "failed" ? job.error || "Download failed" : `${progress.message||job.status}${ACTIVE.has(job.status) ? ` · ${progress.label}` : ""}`;
+    if(job.status==="completed") {
+      if(job.qualityPreserved)status.textContent+=" · Original video and selected audio preserved.";
+      if(job.containerFallback)status.textContent+=" · "+job.containerFallback;
+    }
     if (job.status === "failed") status.className = "job-error";
     article.append(title, status);
-    if (ACTIVE.has(job.status)) { const progress = document.createElement("progress"); progress.max = 100; progress.value = job.progress || 0; progress.setAttribute("aria-label", "Download progress"); article.append(progress); }
+    if (ACTIVE.has(job.status)) { const bar = document.createElement("progress"); bar.max = 100; bar.value = progress.value; bar.setAttribute("aria-label", progress.label); article.append(bar); }
     if (job.status === "completed" && job.path) {
       const button = document.createElement("button"); button.textContent = "Open folder"; button.className = "quiet";
       button.addEventListener("click", () => request("reveal", {jobId: job.id}).catch(error => message(error.message, true))); article.append(button);
@@ -82,6 +89,13 @@ function renderJobs(downloads) {
     return article;
   });
   $("jobs").replaceChildren(...elements);
+}
+function downloadStageProgress(job) {
+  const message=String(job.message||"");
+  const stage=ACTIVE.has(job.status)?message.match(/^(.*?)\s·\s(\d+(?:\.\d+)?)%$/):null;
+  const value=Math.max(0,Math.min(100,stage?Number(stage[2]):Number(job.progress)||0));
+  const label=stage?`${/^(?:Burning|Converting|Encoding|Rendering)\b/i.test(stage[1])?"Video encoding":/saving|muxing|merging|adding/i.test(stage[1])?"Saving file":"Current stage"}: ${Math.round(value)}%`:`${Math.round(value)}%`;
+  return {value,label,message:stage?stage[1]:message};
 }
 async function refresh() {
   if (polling || !connected || busy) return;
@@ -152,7 +166,8 @@ $("downloadForm").addEventListener("submit", async event => {
     const subtitle=!$("subtitleTrack").disabled&&choice!==""?inspected?.subtitleTracks?.[Number(choice)]:null;
     await request("download", {url: $("url").value.trim(), outputFormat: $("format").value, destination: $("destination").value, xCompatible: $("xCompatible").checked,
       audioFormatId:audio?.formatId||null,audioTrackLabel:audio?.label||null,subtitleLanguage:subtitle?.language||null,subtitleSource:subtitle?.source||"manual",
-      subtitleMode:$("subtitleMode").value,burnSize:$("burnSize").value});
+      subtitleMode:$("subtitleMode").value,burnSize:$("burnSize").value,
+      burnAcknowledged:Boolean(subtitle?.language&&$("subtitleMode").value==="burn")});
     message("Download started. You can close this popup.");
   } catch (error) { message(error.message, true); }
   finally { busy = false; update(); await refresh(); }
@@ -164,7 +179,7 @@ async function init() {
   try {
     const status = await request("status"); connected = true; drive = status.drive;
     $("connection").textContent = `Connected · ClipHarbor ${status.version}`;
-    $("destination").value = status.settings.destination; $("format").value = status.settings.outputFormat;
+    $("destination").value = status.settings.destination; $("format").value = status.settings.outputFormat||"original";
     $("xCompatible").checked = status.settings.xCompatible; $("folder").textContent = status.settings.outputDirectory;
     update(); await refresh();
   } catch (error) { $("connection").textContent = "Desktop app connection needed"; message(error.message, true); update(); }

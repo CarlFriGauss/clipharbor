@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.3/ClipHarbor-Setup-0.9.3-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.4/ClipHarbor-Setup-0.9.4-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -32,7 +32,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.3/ClipHarbor-Setup-0.9.3-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.4/ClipHarbor-Setup-0.9.4-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -41,18 +41,27 @@ then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
 
-Version **0.9.3** fixes the reported YouTube error when downloading translated
-subtitles. ClipHarbor waits 65 seconds in the same YouTube session before fetching
+Version **0.9.4** makes **Original source** and selectable subtitles the download
+defaults. Ordinary video downloads copy both the selected video and audio without
+re-encoding. Adding subtitles or choosing another audio language does not reduce
+the chosen streams' quality. When the requested container cannot store those
+streams, ClipHarbor saves MKV and explains why, instead of converting the media.
+Audio-language variants follow the source's quality ranking, rather than comparing
+bitrates across different codecs.
+
+The YouTube translation fix remains included. ClipHarbor waits 65 seconds in the same session before fetching
 the translation, with a visible countdown and Cancel in Activity. Simply clicking
 Download again created another fresh session and could repeat the error.
 Original-language captions and downloads without translated captions have no
 added wait. See the [downloader maintainer's explanation](https://github.com/yt-dlp/yt-dlp/issues/13831).
 
-**Burn into picture** remains available when you choose subtitles, so the
-text appears automatically in Media Player and other players. **Switchable
-track** remains available as the fast option. Burning encodes the video again;
-you can keep its source resolution/frame rate or explicitly choose up to
-1080p/30 fps for faster processing. Large 4K videos can take substantial time.
+**Selectable track** is the default subtitle display: enable it in a compatible
+player. **Burn into picture** remains an explicit option for permanently visible
+text. Burning changes pixels and encodes the video again; it cannot preserve the
+original compressed video. It can take much longer than playback time, even when
+you keep its source resolution/frame rate. You can explicitly choose up to
+1080p/30 fps for that conversion. This is a resolution reduction, not a
+quality-preserving download.
 No new runtime dependency, AI model, or GPU requirement is added.
 
 The earlier processing fix remains included: slow MP4 saves no longer sit at 82% while
@@ -79,7 +88,7 @@ YouTube requires its own Google upload permission. X and Facebook Page publishin
 require the platform tokens described below. Personal-profile sharing needs no
 Facebook token in ClipHarbor. Each installer user signs in to their own account.
 Advanced source builds need the publisher registration described below.
-[Release notes](packaging/RELEASE-0.9.3.md)
+[Release notes](packaging/RELEASE-0.9.4.md)
 explain the supported destinations and validation. The earlier Tcl/Tk startup
 fix remains included; install over the old version without deleting projects.
 
@@ -95,7 +104,7 @@ Windows security. Download only from this repository's releases. See
 2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 3. Enable **Developer mode**, click **Load unpacked**, and select
    `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension` (inside your installation).
-   Alternatively, download [ClipHarbor-Extension-0.9.3.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.3/ClipHarbor-Extension-0.9.3.zip),
+   Alternatively, download [ClipHarbor-Extension-0.9.4.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.4/ClipHarbor-Extension-0.9.4.zip),
    extract it to a permanent folder, and select that folder.
 4. Pin ClipHarbor to your browser toolbar. Open a video page, click ClipHarbor,
    choose the link, format and **This computer** or **Google Drive**, and download.
@@ -162,7 +171,7 @@ Facebook host or debugger permission.
 
 1. In Chrome/Edge’s Extensions page load the installed
    `%LOCALAPPDATA%\Programs\ClipHarbor\facebook-extension` folder, or extract
-   `ClipHarbor-Facebook-Companion-0.9.3.zip` from the release and load that folder.
+   `ClipHarbor-Facebook-Companion-0.9.4.zip` from the release and load that folder.
 2. Review its stronger **debugger** permission. Chrome does not allow this
    permission to be requested optionally. Although this companion’s code attaches
    only to the Facebook tab it creates, the browser permission itself is powerful
@@ -454,8 +463,8 @@ runtime dependency. Source restrictions and genuine rate limits can still apply;
 the app never silently replaces the chosen language or saves a captionless video
 as a successful subtitled download.
 
-After choosing a language, **Subtitle display** offers **Burn into picture**
-(the default in the app and popup) or **Switchable track**. Burned subtitles
+After choosing a language, **Subtitle display** defaults to **Selectable track**
+in the app and popup. **Burn into picture** is optional. Burned subtitles
 are part of the image and appear automatically in any player. Arabic text uses
 FFmpeg's existing subtitle renderer for right-to-left shaping. Burning requires
 video encoding, so it takes longer and changes the compressed video. The default
@@ -463,22 +472,26 @@ size preserves the source resolution and frame rate; **Up to 1080p / 30 fps**
 is an explicit faster alternative, without enlarging smaller videos. Selecting
 the separate X compatibility profile can also limit resolution/frame rate.
 
-Switchable subtitles are stored inside MP4, MKV, MOV or WebM. Enable them in a
-compatible player. This option copies audio/video streams where possible and
-is substantially faster. Original-source downloads with switchable subtitles
-keep the source container when supported, otherwise use MKV; burning with
+Selectable subtitles are stored inside MP4, MKV, MOV or WebM. Enable them in a
+compatible player. Ordinary downloads copy both chosen media streams and mux
+the captions in the same pass, avoiding a second full-file copy. If a container
+cannot store the original codecs, MKV is used with an explicit notice. Source
+resolution, frame rate, codec, audio channels and compressed media quality are
+preserved. Original-source downloads keep the source container when supported;
+burning with
 Original source selected produces an encoded MKV. No separate subtitle file is
 left beside a completed download. Audio-only outputs disable subtitles.
 Computer and Google Drive downloads use the same processing. No transcription
 model, translation service, GPU requirement or additional runtime dependency is
 introduced.
 
-Normal MP4 saves preserve supported source video codecs (including AV1, VP9,
-HEVC and H.264) instead of forcing an H.264 encode. Some players require support
+Normal video saves preserve the selected source video and audio codecs,
+including Opus and multichannel AAC. Some players require support
 for the source codec. Use **Make it X compatible** when H.264 compatibility and
 the X profile are needed. This explicit mode can still require conversion.
 Managed media processing runs at lower priority, uses two codec threads and one
-conversion at a time, and reports real processing progress. Active source
+conversion at a time, and reports the current stage's actual progress rather
+than a weighted overall percentage during encoding. Active source
 downloads can be cancelled in Activity; completed uploads/publication are not
 interrupted by that control.
 

@@ -157,7 +157,14 @@ def main():
                 assert captioned["result"]["subtitleTrack"]["language"] == "fr"
                 assert captioned["result"]["media"]["subtitles"][0]["codec"] == "mov_text"
                 assert captioned["result"]["media"]["video"]["codec"] == "av1", "MP4 save must keep supported source video without encoding to H.264"
-                burn_job=extension("download", url=caption_url, destination="local", outputFormat="mp4", subtitleLanguage="fr", subtitleSource="manual", subtitleMode="burn", burnSize="source")["job"]
+                assert captioned["result"]["qualityPreserved"] is True
+                def packet_hashes(path,stream):
+                    raw=subprocess.check_output([str(media_tools/"ffprobe.exe"),"-v","error","-select_streams",stream,
+                        "-show_packets","-show_entries","packet=data_hash","-show_data_hash","sha256","-of","json",str(path)],env=env)
+                    return [entry["data_hash"] for entry in json.loads(raw)["packets"]]
+                for stream in ("v:0","a:0"):
+                    assert packet_hashes(root/"caption-source.mp4",stream)==packet_hashes(captioned["result"]["path"],stream), "Both chosen media streams must remain identical"
+                burn_job=extension("download", url=caption_url, destination="local", outputFormat="mp4", subtitleLanguage="fr", subtitleSource="manual", subtitleMode="burn", burnAcknowledged=True, burnSize="source")["job"]
                 for _ in range(200):
                     burned=api("/api/jobs/"+burn_job["id"])
                     if burned["status"] not in ("queued", "running"):

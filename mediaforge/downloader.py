@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import yt_dlp
 
-from .ffmpeg import ALL_FORMATS, AUDIO_FORMATS, convert, embed_subtitle, ensure_x_compatible, probe, unique_output
+from .ffmpeg import ALL_FORMATS, AUDIO_FORMATS, VIDEO_FORMATS, convert, embed_subtitle, ensure_x_compatible, probe, remux_original, unique_output
 from .jobs import JobContext
 
 
@@ -153,7 +153,10 @@ def audio_tracks_from_formats(formats: list[dict[str, Any]]) -> list[dict[str, A
     """Collapse yt-dlp's codec/bitrate variants into human-selectable audio tracks."""
     tracks: dict[tuple[str, str], tuple[tuple[float, ...], dict[str, Any]]] = {}
     quality_words = {"default", "low", "medium", "high", "audio", "audio only", "premium"}
-    for item in formats:
+    # Processed yt-dlp formats are ordered from worst to best. Do not compare
+    # AAC and Opus by their raw bit rates: those numbers are not comparable
+    # quality scores across codecs.
+    for format_rank, item in enumerate(formats):
         if item.get("acodec") in (None, "none"):
             continue
         format_id = str(item.get("format_id") or "")
@@ -173,9 +176,7 @@ def audio_tracks_from_formats(formats: list[dict[str, Any]]) -> list[dict[str, A
         score = (
             1.0 if item.get("vcodec") in (None, "none") else 0.0,
             0.0 if "drc" in note.lower() else 1.0,
-            float(item.get("abr") or item.get("tbr") or 0),
-            float(item.get("asr") or 0),
-            float(item.get("filesize") or item.get("filesize_approx") or 0),
+            float(format_rank),
         )
         track = {
             "formatId": format_id,
@@ -438,9 +439,27 @@ def _download(context, *, url, destination, working, target_format, x_compatible
     final_path = source
     converted = False
     skipped_x_conversion = False
+    source_media = probe(source)
+    container_fallback = None
 
     burn = bool(subtitle_file and subtitle_mode == "burn")
-    if target_format != "original" or burn:
+    preserve_quality = target_format in VIDEO_FORMATS and not burn and not x_compatible
+    if preserve_quality:
+        extension = source.suffix.lstrip(".").lower() if target_format == "original" else target_format
+        # The original file already contains the selected streams. Only mux it
+        # again when the user chooses another container or adds captions.
+        source_containers = set(str(source_media.get("format") or "").split(","))
+        container_name = "matroska" if extension == "mkv" else extension
+        if subtitle_file or (target_format != "original" and container_name not in source_containers):
+            output = working / f"original-quality.{extension}"
+            final_path, container_fallback = remux_original(source, output,
+                subtitle_path=subtitle_file, language=subtitle_language,
+                title=selected_subtitle["label"] if selected_subtitle else None,
+                on_line=context.write,
+                on_progress=lambda ratio, mode: context.update(82 + ratio * 17, f"{mode} · {ratio:.0%}"),
+                check_cancelled=getattr(context, "check_cancelled", None), media=source_media)
+            converted = True
+    elif target_format != "original" or burn:
         render_format = target_format if target_format != "original" else "mkv"
         output = working / f"converted.{render_format}"
         context.update(82, f"Rendering {target_format.upper()} output")
@@ -462,7 +481,7 @@ def _download(context, *, url, destination, working, target_format, x_compatible
             final_path = checked_path
         skipped_x_conversion = not changed
 
-    if subtitle_file and not burn:
+    if subtitle_file and not burn and not preserve_quality:
         context.update(97, "Adding the selected subtitles without re-encoding video")
         extension = final_path.suffix.lstrip(".").lower()
         if extension not in {"mp4", "mkv", "mov", "webm"}:
@@ -491,4 +510,10 @@ def _download(context, *, url, destination, working, target_format, x_compatible
         "subtitleTrack": selected_subtitle,
         "subtitleRendering": subtitle_mode if selected_subtitle else None,
         "burnSize": burn_size if burn else None,
+        "qualityPreserved": preserve_quality,
+        "containerFallback": container_fallback,
+        "requestedFormat": target_format,
+        "outputFormat": final_path.suffix.lstrip(".").lower(),
+        "sourceCodecs": {"video": (source_media.get("video") or {}).get("codec"),
+                         "audio": (source_media.get("audio") or {}).get("codec")},
     }

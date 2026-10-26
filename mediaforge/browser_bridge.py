@@ -50,7 +50,7 @@ def media_url(value):
 
 
 def settings():
-    result = {"destination": "local", "outputFormat": "mp4", "outputDirectory": str(downloads_directory()), "xCompatible": False}
+    result = {"destination": "local", "outputFormat": "original", "outputDirectory": str(downloads_directory()), "xCompatible": False}
     try:
         saved = json.loads((data_root() / "browser-downloads.json").read_text(encoding="utf-8"))
         if not isinstance(saved, dict):
@@ -157,6 +157,10 @@ def public_job(job):
         "name": (result.get("media") or {}).get("name", ""),
         "path": result.get("path") if not result.get("cloudDownloadId") else None,
         "driveUrl": delivery.get("url") if delivery.get("provider") == "drive" else None,
+        "qualityPreserved": result.get("qualityPreserved") is True,
+        "containerFallback": result.get("containerFallback") or None,
+        "requestedFormat": result.get("requestedFormat") or None,
+        "outputFormat": result.get("outputFormat") or None,
     }
 
 
@@ -176,6 +180,8 @@ def handle(message):
         audio, subtitle, source = message.get("audioFormatId"), message.get("subtitleLanguage"), message.get("subtitleSource", "manual")
         if message.get("subtitleMode", "embed") not in ("burn", "embed") or message.get("burnSize", "source") not in ("source", "1080"):
             raise BridgeError("Choose a supported subtitle display and video size.")
+        if subtitle and message.get("subtitleMode") == "burn" and message.get("burnAcknowledged") is not True:
+            raise BridgeError("Burn into picture re-encodes the original video. Reopen the ClipHarbor popup and select it explicitly, or choose selectable subtitles to keep original quality.")
         if (audio is not None and (not isinstance(audio, str) or not re.fullmatch(r"[A-Za-z0-9._+-]+", audio))
                 or not isinstance(source, str) or source not in {"manual", "automatic"}
                 or subtitle is not None and (not isinstance(subtitle, str)
@@ -194,11 +200,11 @@ def handle(message):
     else:
         client, health = ensure_desktop()
     try:
-        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 9, 3)
+        compatible = tuple(int(part) for part in health["version"].split(".")) >= (0, 9, 4)
     except (KeyError, ValueError, AttributeError):
         compatible = False
     if not compatible:
-        raise BridgeError("Quit the older ClipHarbor app, install version 0.9.3 or newer, then try again.")
+        raise BridgeError("Quit the older ClipHarbor app, install version 0.9.4 or newer, then try again.")
     if action == "status":
         drive = client.api("/api/connections")["drive"]
         return {"version": health["version"], "settings": settings(),
@@ -212,7 +218,8 @@ def handle(message):
             "deliveryOptions": {}, "xCompatible": prefs["outputFormat"] == "mp4" and prefs["xCompatible"],
             "audioFormatId": message.get("audioFormatId"), "audioTrackLabel": str(message.get("audioTrackLabel") or "")[:200],
             "subtitleLanguage": message.get("subtitleLanguage"), "subtitleSource": message.get("subtitleSource", "manual"),
-            "subtitleMode": message.get("subtitleMode", "embed"), "burnSize": message.get("burnSize", "source")})
+            "subtitleMode": message.get("subtitleMode", "embed"), "burnSize": message.get("burnSize", "source"),
+            "burnAcknowledged": message.get("burnAcknowledged") is True})
         save_settings(prefs)
         return {"job": public_job(job)}
     if action == "job":
