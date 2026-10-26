@@ -71,7 +71,7 @@ function updateSubtitleFormat() {
   $("#subtitleTrackSelect").disabled=audioOnly;
   $("#subtitleModeField").classList.toggle("hidden",!selected);
   $("#burnSizeField").classList.toggle("hidden",!selected||!burn);
-  $("#subtitleTrackHelp").textContent=audioOnly?"Subtitles require a video format.":!selected?"Choose a language to include subtitles.":burn?"Text is permanently visible in every player. Burning requires video encoding; source size keeps the resolution and frame rate, not the original video bitstream.":"Saved inside the video as a switchable track. Turn subtitles on in a compatible player; video is copied when the format allows.";
+  $("#subtitleTrackHelp").textContent=audioOnly?"Subtitles require a video format.":!selected?"Choose a language to include subtitles.":burn?"Burning changes every affected video frame and re-encodes the video. Keeping the resolution and frame rate does not preserve its original compressed quality. A 4K video can take much longer than its playback time.":"Saved as a selectable track without encoding the video or chosen audio again. Enable subtitles in a compatible player.";
   if(selected&&burn&&$("#formatSelect").value==="original")$("#subtitleTrackHelp").textContent+=" Original source with burning saves an encoded MKV.";
   const track=selected?state.inspected?.subtitleTracks?.[Number($("#subtitleTrackSelect").value)]:null;
   if(track?.translated&&/^youtube$/i.test(state.inspected?.site||""))$("#subtitleTrackHelp").textContent+=" YouTube translations need about a minute to prepare; Activity shows the countdown.";
@@ -81,6 +81,7 @@ function renderSourceTracks(info = {}) {
   const tracks=info.subtitleTracks||[], select=$("#subtitleTrackSelect");
   select.innerHTML=`<option value="">None</option>`+tracks.map((track,index)=>`<option value="${index}">${escapeHtml(sourceLanguageLabel(track))} [${escapeHtml(track.language)}] · ${escapeHtml(subtitleDescription(track))}</option>`).join("");
   select.value="";
+  $("#subtitleModeSelect").value="embed";$("#burnSizeSelect").value="source";
   $("#subtitleTrackField").classList.toggle("hidden",!tracks.length);
   const facebook=/facebook/i.test(info.site||"");
   $("#sourceTrackNotice").classList.toggle("hidden",!facebook);
@@ -121,6 +122,7 @@ async function startDownload() {
   const subtitle=!$("#subtitleTrackSelect").disabled&&subtitleValue!==""?state.inspected?.subtitleTracks?.[Number(subtitleValue)]:null;
   payload.subtitleLanguage=subtitle?.language||null;payload.subtitleSource=subtitle?.source||"manual";
   payload.subtitleMode=$("#subtitleModeSelect").value;payload.burnSize=$("#burnSizeSelect").value;
+  payload.burnAcknowledged=Boolean(subtitle?.language&&payload.subtitleMode==="burn");
   Object.assign(payload, downloadDeliveryPayload());
   if (!payload.url || (payload.destination === "local" && !payload.outputDirectory)) return toast("Missing download details", "Enter a URL and choose an output folder for local downloads.", true);
   if(payload.destination === "drive" && !connectionStatus.drive?.connected) return toast("Connect Google Drive", "Connect your account before starting a Drive download.", true);
@@ -158,6 +160,8 @@ function completeJob(job) {
   $("#completeTitle").textContent = facebookProfile ? "Video ready for Facebook" : cloudDownload ? "Saved to Google Drive" : finalMp4 ? "Final MP4 ready" : isDownload ? "Download complete" : job.result.delivery ? "Export complete" : job.kind === "upload" ? "Upload complete" : "Render complete";
   let note = finalMp4 ? `${media.name} · ${formatBytes(media.size)} · Ready to use. No editing or additional export is required.` : `${media.name} · ${formatBytes(media.size)}`;
   if(job.result.audioTrack)note+=` · Audio: ${job.result.audioTrack}.`;
+  if(isDownload&&job.result.qualityPreserved)note+=" · Original video and selected audio preserved without re-encoding.";
+  if(isDownload&&job.result.containerFallback)note+=" · "+job.result.containerFallback;
   if(job.result.subtitleTrack)note+=` · Subtitles: ${sourceLanguageLabel(job.result.subtitleTrack)} [${job.result.subtitleTrack.language}] · ${job.result.subtitleRendering==="burn"?"burned into picture":"switchable track — turn on in your player"}.`;
   if (isDownload && job.result.xCompatible) note += job.result.xConversionSkipped ? " · Extra X conversion was unnecessary." : " · Verified for X.";
   if (!isDownload && job.result.xCompatible) note += " · Verified for X upload.";
@@ -177,11 +181,18 @@ function completeJob(job) {
   $("#completeMessage").textContent = note;$("#completePath").textContent=job.result.path || "";$("#completeDialog").showModal();
   if(cloudDownload) refreshConnections().catch(()=>{});
 }
+function downloadStageProgress(job) {
+  const message=String(job.message||"");
+  const stage=job.kind==="download"&&["queued","running"].includes(job.status)?message.match(/^(.*?)\s·\s(\d+(?:\.\d+)?)%$/):null;
+  const value=Math.max(0,Math.min(100,stage?Number(stage[2]):Number(job.progress)||0));
+  const label=stage?`${/^(?:Burning|Converting|Encoding|Rendering)\b/i.test(stage[1])?"Video encoding":/saving|muxing|merging|adding/i.test(stage[1])?"Saving file":"Current stage"}: ${Math.round(value)}%`:`${Math.round(value)}%`;
+  return {value,label,message:stage?stage[1]:message};
+}
 function updateJobs() {
   const allJobs = [...state.jobs.values()].sort((a,b) => b.createdAt - a.createdAt), active = allJobs.filter(job => ["queued","running"].includes(job.status)).length;
   $("#jobCount").textContent = active; $("#jobCount").classList.toggle("hidden", !active);
   if (!allJobs.length) return $("#jobsList").innerHTML = `<div class="empty-jobs">No activity yet.</div>`;
-  $("#jobsList").innerHTML = allJobs.map(job => `<article class="job-card ${escapeHtml(job.status)}"><div class="job-top"><strong>${escapeHtml(job.kind)}</strong><span class="job-status">${escapeHtml(job.status)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${job.progress}%"></div></div><div class="job-message"><span>${escapeHtml(job.message || "")}</span><span>${Math.round(job.progress)}%</span></div>${jobResultMarkup(job)}${job.canCancel||job.cancelRequested&&job.status==="running"?`<button class="button ghost" data-cancel-job="${escapeHtml(job.id)}" ${job.cancelRequested?"disabled":""}>${job.cancelRequested?"Cancelling…":"Cancel download"}</button>`:""}${job.error ? `<p class="job-error">${escapeHtml(job.error)}</p>` : ""}${job.log?.length ? `<details><summary class="job-status">FFmpeg / downloader details</summary><pre class="job-log">${escapeHtml(job.log.slice(-16).join("\n"))}</pre></details>` : ""}</article>`).join("");
+  $("#jobsList").innerHTML = allJobs.map(job => {const progress=downloadStageProgress(job);return `<article class="job-card ${escapeHtml(job.status)}"><div class="job-top"><strong>${escapeHtml(job.kind)}</strong><span class="job-status">${escapeHtml(job.status)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${progress.value}%"></div></div><div class="job-message"><span>${escapeHtml(progress.message)}</span><span>${escapeHtml(progress.label)}</span></div>${jobResultMarkup(job)}${job.canCancel||job.cancelRequested&&job.status==="running"?`<button class="button ghost" data-cancel-job="${escapeHtml(job.id)}" ${job.cancelRequested?"disabled":""}>${job.cancelRequested?"Cancelling…":"Cancel download"}</button>`:""}${job.error ? `<p class="job-error">${escapeHtml(job.error)}</p>` : ""}${job.log?.length ? `<details><summary class="job-status">FFmpeg / downloader details</summary><pre class="job-log">${escapeHtml(job.log.slice(-16).join("\n"))}</pre></details>` : ""}</article>`;}).join("");
 }
 async function cancelDownload(jobId) {
   try { const job=await api(`/api/jobs/${encodeURIComponent(jobId)}/cancel`,{method:"POST",body:"{}"});state.jobs.set(job.id,job);updateJobs(); }

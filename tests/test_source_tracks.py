@@ -136,13 +136,22 @@ def test_route_reuses_only_a_registered_video_and_keeps_its_audio(media_site, tm
     captured=[]
     monkeypatch.setattr(web.jobs,'start',lambda *a,**k:(captured.append(k) or Job(id='test',kind='download')))
     data={'url':base+'/index.html','outputDirectory':str(tmp_path),'outputFormat':'mp4',
-          'subtitleLanguage':'fr','subtitleMode':'burn','burnSize':'source','sourceToken':asset['token']}
+          'subtitleLanguage':'fr','subtitleMode':'burn','burnAcknowledged':True,'burnSize':'source','sourceToken':asset['token']}
     assert client.post('/api/downloads',json=data).status_code==202
     assert captured[-1]['existing_media_path']==str(root/'source.mp4')
     assert captured[-1]['subtitle_mode']=='burn' and captured[-1]['burn_size']=='source'
     for invalid in ({'sourceToken':'unknown'},{'audioFormatId':'dub'},{'subtitleLanguage':None}):
         assert client.post('/api/downloads',json=data|invalid).status_code==400
     assert len(captured)==1
+
+
+@pytest.mark.parametrize('acknowledgement',[None,False,'true'])
+def test_cached_burn_defaults_cannot_start_an_encode(monkeypatch,tmp_path,acknowledgement):
+    monkeypatch.setattr(web.jobs,'start',lambda *a,**k:pytest.fail('Old cached burn default started work'))
+    response=web.create_app().test_client().post('/api/downloads',json={
+        'url':'https://example.test/video','outputDirectory':str(tmp_path),'outputFormat':'mp4',
+        'subtitleLanguage':'ar','subtitleMode':'burn','burnAcknowledged':acknowledgement})
+    assert response.status_code==400 and 're-encodes' in response.json['error']
 
 
 def test_removed_subtitle_stops_before_downloading_and_cleans_working_files(monkeypatch, tmp_path):
@@ -211,7 +220,7 @@ def media_site(tmp_path_factory):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("container,codec", [("mp4", "mov_text"), ("mkv", "subrip"), ("mov", "mov_text"), ("webm", "webvtt"), ("original", "mov_text")])
+@pytest.mark.parametrize("container,codec", [("mp4", "mov_text"), ("mkv", "subrip"), ("mov", "mov_text"), ("webm", "subrip"), ("original", "mov_text")])
 def test_real_inspection_and_caption_download_in_every_video_container(media_site, tmp_path, container, codec):
     root, base = media_site
     info = downloader.inspect_url(base + "/index.html")
@@ -220,6 +229,9 @@ def test_real_inspection_and_caption_download_in_every_video_container(media_sit
         output_format=container, subtitle_language="fr", register=lambda p: "registered")
     assert result["subtitleTrack"]["language"] == "fr"
     assert result["media"]["subtitles"][0]["codec"] == codec
+    assert result["qualityPreserved"] is True
+    if container == "webm":
+        assert Path(result["path"]).suffix == ".mkv" and result["containerFallback"]
     text = subprocess.check_output(["ffmpeg", "-v", "error", "-i", result["path"], "-map", "0:s:0", "-f", "srt", "pipe:1"]).decode("utf-8")
     assert "Bonjour de ClipHarbor" in text and "Hello from ClipHarbor" not in text
     assert list(tmp_path.iterdir()) == [Path(result["path"])], "Do not leave intermediate files or caption sidecars"

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.9.3') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='0.9.4') }}">
 </head>
 <body>
   <header class="topbar">
@@ -62,16 +62,16 @@
           <div class="form-grid">
             <label class="field"><span id="downloadFormatLabel">Format</span>
               <select id="formatSelect" aria-labelledby="downloadFormatLabel" aria-describedby="downloadFormatHelp">
-                <option value="mp4" selected>MP4 · video</option>
-                <option value="original">Original source · source container</option>
-                <option value="mkv">MKV · video</option>
-                <option value="webm">WebM · web optimized</option>
-                <option value="mov">MOV · editing compatible</option>
-                <option value="mp3">MP3 · audio only</option>
-                <option value="m4a">M4A · high quality audio</option>
-                <option value="wav">WAV · uncompressed audio</option>
+                <option value="original" selected>Original source · preserve video and audio</option>
+                <option value="mp4">MP4 · preserve source streams</option>
+                <option value="mkv">MKV · preserve source streams</option>
+                <option value="webm">WebM · preserve source streams</option>
+                <option value="mov">MOV · preserve source streams</option>
+                <option value="mp3">MP3 · convert audio</option>
+                <option value="m4a">M4A · convert audio</option>
+                <option value="wav">WAV · uncompressed audio conversion</option>
               </select>
-              <small id="downloadFormatHelp" class="field-help">MP4 copies supported video when possible. Burning subtitles encodes video again. Use X compatibility when its H.264 profile is required.</small>
+              <small id="downloadFormatHelp" class="field-help">Video downloads preserve the original video and selected audio. If a format cannot hold those streams, MKV is used to keep their quality. Burning subtitles re-encodes video. X compatibility may also convert it.</small>
             </label>
             <label id="audioTrackField" class="field hidden"><span id="audioTrackLabel">Audio track</span>
               <select id="audioTrackSelect" aria-labelledby="audioTrackLabel" aria-describedby="audioTrackHelp"><option value="">Automatic / source default</option></select>
@@ -82,11 +82,11 @@
               <small id="subtitleTrackHelp" class="field-help">Choose a language to include subtitles.</small>
             </label>
             <label id="subtitleModeField" class="field hidden"><span>Subtitle display</span>
-              <select id="subtitleModeSelect"><option value="burn">Burn into picture · always visible</option><option value="embed">Switchable track · fast</option></select>
-              <small class="field-help">Burning encodes the video again. A long or 4K video can take much longer; Activity shows progress and Cancel.</small>
+              <select id="subtitleModeSelect"><option value="embed" selected>Selectable subtitles · original video quality</option><option value="burn">Burn into picture · re-encode video</option></select>
+              <small class="field-help">Selectable subtitles keep the original video and audio. Burning changes the picture and re-encodes it; a 4K video can take much longer than its playback time.</small>
             </label>
             <label id="burnSizeField" class="field hidden"><span>Video size with burned subtitles</span>
-              <select id="burnSizeSelect"><option value="source">Keep source resolution and frame rate</option><option value="1080">Up to 1080p / 30 fps · faster</option></select>
+              <select id="burnSizeSelect"><option value="source">Source resolution and frame rate · video re-encoded</option><option value="1080">Reduce to up to 1080p / 30 fps</option></select>
             </label>
             <label class="field"><span id="downloadOutputLabel">Output folder</span>
               <div class="path-row"><input id="outputPath" type="text"><button id="browseOutput" class="icon-button" title="Choose folder">…</button></div>
@@ -117,7 +117,7 @@
           <label id="xOption" class="option-toggle" for="xCompatible">
             <input id="xCompatible" type="checkbox">
             <span class="toggle-ui"></span>
-            <span><strong>Make it X compatible</strong><small>Probe first; only convert streams that need it.</small></span>
+            <span><strong>Make it X compatible</strong><small>May resize or re-encode video and change audio to meet X limits.</small></span>
             <span class="x-badge">𝕏</span>
           </label>
           <details class="advanced">
@@ -316,9 +316,9 @@
     <div id="projectList" class="project-list"></div>
   </dialog>
 
-  <script src="{{ url_for('static', filename='destinations.js', v='0.9.3') }}" defer></script>
-  <script src="{{ url_for('static', filename='download-destinations.js', v='0.9.3') }}" defer></script>
-  <script src="{{ url_for('static', filename='editor-layout.js', v='0.9.3') }}" defer></script>
-  <script src="{{ url_for('static', filename='app.js', v='0.9.3') }}" defer></script>
+  <script src="{{ url_for('static', filename='destinations.js', v='0.9.4') }}" defer></script>
+  <script src="{{ url_for('static', filename='download-destinations.js', v='0.9.4') }}" defer></script>
+  <script src="{{ url_for('static', filename='editor-layout.js', v='0.9.4') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js', v='0.9.4') }}" defer></script>
 </body>
 </html>

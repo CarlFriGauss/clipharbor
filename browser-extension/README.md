@@ -1,6 +1,6 @@
 # ClipHarbor browser companion
 
-Chrome and Edge, Manifest V3. Requires ClipHarbor 0.9.3 or newer on the same
+Chrome and Edge, Manifest V3. Requires ClipHarbor 0.9.4 or newer on the same
 computer. The Windows installer registers the local bridge. No cloud processing,
 browser cookies, browsing history permission, or access to all websites is used.
 
@@ -12,10 +12,12 @@ browser cookies, browsing history permission, or access to all websites is used.
 
 Click **Inspect audio & subtitles** to list the source's downloadable audio
 languages and caption tracks. Subtitles start at **None**; choose creator,
-automatic or translated captions when available. **Burn into picture** makes text
-always visible; it encodes the video again and can take substantial time for 4K.
-Keep the source resolution/frame rate or explicitly select up to 1080p/30 fps.
-**Switchable track** is the fast alternative; enable it in a compatible player.
+automatic or translated captions when available. **Original source** is the fresh
+format default, and **Selectable track** is the default subtitle display. Chosen
+video and audio streams are copied without encoding; MKV is used with a notice
+if the requested container cannot hold them. Enable subtitles in a compatible
+player. **Burn into picture** is an explicit conversion that changes video pixels
+and compressed quality; it can take much longer than playback time for 4K.
 Progress and Cancel download are available in the desktop app. Audio-only formats disable
 captions. Choices apply only to that URL and reset when it changes. Facebook
 player translations may not be exposed for download. Right-click downloads use
@@ -25,15 +27,16 @@ YouTube translations need a 65-second preparation wait in the same session.
 The popup explains this before starting, and the app's Activity shows the
 countdown with Cancel. Native captions and other sites have no added delay.
 
-MP4 now preserves supported source video codecs instead of forcing an H.264
-encode. Choose X compatibility when that profile is needed. In a dubbed video,
+Video downloads preserve both chosen streams, including Opus and multichannel
+AAC. Choose X compatibility only when its explicit conversion profile is needed.
+In a dubbed video,
 caption labels distinguish **captions for Arabic audio** from **translated from
 English**, for example. Target-language translations prefer the original audio
 language when a source mixes alternatives from several dubs.
 
 The Windows installer includes this folder at
 `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension`. Alternatively extract
-`ClipHarbor-Extension-0.9.3.zip` from the GitHub release and load its extracted
+`ClipHarbor-Extension-0.9.4.zip` from the GitHub release and load its extracted
 folder. Keep the folder in place. This version is not in either browser's store.
 No browser policies are changed and extensions are never silently force-installed.
 

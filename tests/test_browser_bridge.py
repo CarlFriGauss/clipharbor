@@ -93,6 +93,13 @@ def test_bridge_submits_only_supported_download_fields(tmp_path, monkeypatch):
     assert bridge.settings()["destination"] == "drive"
 
 
+def test_new_browser_settings_keep_original_quality_but_respect_a_saved_format(tmp_path, monkeypatch):
+    monkeypatch.setattr(bridge, "data_root", lambda: tmp_path)
+    assert bridge.settings()["outputFormat"] == "original"
+    bridge.save_settings({"outputFormat":"mp4"})
+    assert bridge.settings()["outputFormat"] == "mp4"
+
+
 def test_bridge_inspection_and_track_selection_share_the_desktop_backend(tmp_path, monkeypatch):
     monkeypatch.setattr(bridge, "data_root", lambda: tmp_path)
     calls = []
@@ -107,10 +114,11 @@ def test_bridge_inspection_and_track_selection_share_the_desktop_backend(tmp_pat
     assert info["info"]["subtitleTracks"][0]["language"] == "fr"
     assert calls[0] == ("/api/inspect-url", {"url": "https://example.com/video"})
     bridge.handle({"protocol": 1, "action": "download", "url": "https://example.com/video", "destination": "local", "outputFormat": "mp4",
-                   "audioFormatId": "audio-es", "subtitleLanguage": "fr", "subtitleSource": "automatic", "subtitleMode": "burn", "burnSize": "source"})
+                   "audioFormatId": "audio-es", "subtitleLanguage": "fr", "subtitleSource": "automatic", "subtitleMode": "burn", "burnAcknowledged": True, "burnSize": "source"})
     payload = calls[-1][1]
     assert payload["audioFormatId"] == "audio-es" and payload["subtitleLanguage"] == "fr" and payload["subtitleSource"] == "automatic"
     assert payload["subtitleMode"] == "burn" and payload["burnSize"] == "source"
+    assert payload["burnAcknowledged"] is True
     assert "subtitleLanguage" not in bridge.settings(), "Track choices belong to one source, never the next URL"
 
 
@@ -167,7 +175,7 @@ def test_damaged_preferences_fall_back_to_defaults(tmp_path, monkeypatch):
     for value in ([], {"destination": [], "outputFormat": {}, "outputDirectory": "bad\npath"}, "bad-json"):
         (tmp_path / "browser-downloads.json").write_text(json.dumps(value), encoding="utf-8")
         assert bridge.settings()["destination"] == "local"
-        assert bridge.settings()["outputFormat"] == "mp4"
+        assert bridge.settings()["outputFormat"] == "original"
 
 
 def test_source_lock_prevents_duplicate_engines(tmp_path):

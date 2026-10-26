@@ -3,7 +3,7 @@ import {HOST, ACTIVE, cleanUrl, contextUrl} from "./shared.js";
 async function native(action, fields = {}) {
   let response;
   try { response = await chrome.runtime.sendNativeMessage(HOST, {protocol: 1, action, ...fields}); }
-  catch { throw new Error("ClipHarbor's browser bridge is unavailable. Install ClipHarbor 0.9.3 or newer, then try again. Source users: register the bridge first."); }
+  catch { throw new Error("ClipHarbor's browser bridge is unavailable. Install ClipHarbor 0.9.4 or newer, then try again. Source users: register the bridge first."); }
   if (!response?.ok) throw new Error(response?.error || "ClipHarbor could not complete the request.");
   return response;
 }
@@ -33,7 +33,7 @@ async function startDownload(fields) {
   const {job} = await native("download", {url: fields.url, destination: fields.destination, outputFormat: fields.outputFormat, xCompatible: fields.xCompatible === true,
     audioFormatId:fields.audioFormatId||null,audioTrackLabel:fields.audioTrackLabel||null,
     subtitleLanguage:fields.subtitleLanguage||null,subtitleSource:fields.subtitleSource||"manual",
-    subtitleMode:fields.subtitleMode||"embed",burnSize:fields.burnSize||"source"});
+    subtitleMode:fields.subtitleMode||"embed",burnSize:fields.burnSize||"source",burnAcknowledged:fields.burnAcknowledged===true});
   const {downloads = []} = await chrome.storage.local.get("downloads");
   // Never evict an active download from background tracking.
   const retained = downloads.filter(item => ACTIVE.has(item.status));

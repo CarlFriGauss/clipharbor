@@ -225,6 +225,104 @@ def unique_output(directory: Path, stem: str, extension: str) -> Path:
     return candidate
 
 
+def remux_original(input_path, output_path, *, subtitle_path=None, language=None, title=None,
+                   on_line=None, on_progress=None, check_cancelled=None, media=None):
+    """Copy the selected media streams once, with optional switchable captions.
+
+    Container support differs between installed FFmpeg builds. Let the actual
+    muxer decide; on an unsupported codec/container combination, use Matroska
+    instead of silently encoding or dropping audio channels. Other errors and
+    cancellation are never retried as container failures.
+    """
+    from yt_dlp.utils import ISO639Utils
+
+    source, requested = Path(input_path).resolve(), Path(output_path).resolve()
+    if source == requested:
+        raise ValueError("The output must not overwrite the original media")
+    if requested.exists():
+        raise FileExistsError(f"The output already exists: {requested}")
+    media = media or probe(source)
+    extension = requested.suffix.lower().lstrip(".")
+    supported = {"mp4", "mkv", "mov", "webm"}
+    fallback = None
+    if extension not in supported:
+        fallback = f"Saved as MKV to keep original video/audio quality; {extension.upper() or 'the source container'} cannot store the selected subtitles."
+        output = requested.with_suffix(".mkv")
+    else:
+        output = requested
+    if output == source:
+        raise ValueError("The output must not overwrite the original media")
+    if output.exists():
+        raise FileExistsError(f"The output already exists: {output}")
+
+    def mux(target):
+        container = target.suffix.lstrip(".").lower()
+        command = ["ffmpeg", "-hide_banner", "-nostats", "-progress", "pipe:1", "-i", str(source)]
+        if subtitle_path:
+            command += ["-i", str(Path(subtitle_path).resolve())]
+        command += ["-map", "0:v:0?", "-map", "0:a:0?", "-map_metadata", "0", "-c:v", "copy", "-c:a", "copy"]
+        if subtitle_path:
+            codec = {"mp4": "mov_text", "mov": "mov_text", "mkv": "srt", "webm": "webvtt"}[container]
+            base = re.split(r"[-_]", str(language or "und"))[0].lower()
+            language_code = ISO639Utils.short2long(base) or base
+            command += ["-map", "1:0", "-c:s", codec, "-metadata:s:s:0", f"language={language_code}",
+                        "-metadata:s:s:0", f"title={title or language or 'Subtitles'}", "-disposition:s:0", "default"]
+        if container in {"mp4", "mov"}:
+            command += ["-movflags", "+faststart"]
+        command += ["-y", str(target)]
+        mode = "Saving original video/audio" + (" with selectable subtitles" if subtitle_path else "")
+        lines = []
+        def report(line):
+            lines.append(line)
+            if len(lines) > 80:
+                del lines[0]
+            if on_line:
+                on_line(line)
+            if on_progress and line.startswith("out_time_us="):
+                try:
+                    ratio = float(line.partition("=")[2]) / 1_000_000 / max(float(media.get("duration") or 0), .01)
+                    on_progress(max(0., min(.99, ratio)), mode)
+                except ValueError:
+                    pass
+            elif on_progress and line == "progress=end":
+                on_progress(1., mode)
+            elif on_progress and line.startswith("Waiting for another media operation"):
+                on_progress(0., line)
+        if on_progress:
+            on_progress(0., mode)
+        try:
+            run(command, report, check_cancelled=check_cancelled)
+        except RuntimeError:
+            if check_cancelled:
+                check_cancelled()
+            diagnostic = "\n".join(lines).lower()
+            incompatible = any(phrase in diagnostic for phrase in (
+                "could not find tag for codec", "not currently supported in container",
+                "only supported in", "are supported for webm", "not supported by the muxer",
+                "codec not supported"))
+            if container == "mkv" or not incompatible:
+                raise
+            target.unlink(missing_ok=True)
+            return False
+        return True
+
+    if not mux(output):
+        fallback = f"Saved as MKV to keep original video/audio quality; {extension.upper()} does not support the selected streams."
+        output = requested.with_suffix(".mkv")
+        if output == source:
+            raise ValueError("The fallback output must not overwrite the original media")
+        if output.exists():
+            raise FileExistsError(f"The fallback output already exists: {output}")
+        if on_line:
+            on_line(fallback)
+        mux(output)
+    elif fallback and on_line:
+        on_line(fallback)
+    if subtitle_path and len(probe(output)["subtitles"]) != 1:
+        raise RuntimeError("The downloaded video could not be verified with the selected subtitles")
+    return output, fallback
+
+
 def convert(
     input_path: str | Path,
     output_path: str | Path,

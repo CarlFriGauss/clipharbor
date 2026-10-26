@@ -51,10 +51,11 @@ function cloudDownloadMarkup(job) {
 }
 
 function jobResultMarkup(job) {
-  if(job.result?.cloudDownloadId) return cloudDownloadMarkup(job);
+  const quality = job.kind === "download" && job.result?.qualityPreserved ? `<p class="field-help">Original video and chosen audio preserved without re-encoding.${job.result.containerFallback ? ` ${escapeHtml(job.result.containerFallback)}` : ""}</p>` : "";
+  if(job.result?.cloudDownloadId) return quality + cloudDownloadMarkup(job);
   if(!job.result?.path) return "";
   const id = escapeHtml(job.id);
-  return `<code class="job-result-path">${escapeHtml(job.result.path)}</code><div class="job-actions"><button class="button secondary" data-job-reveal="${id}">Open folder</button><button class="button secondary" data-job-share="${id}">Export / share</button>${deliveryMarkup(job)}<button class="button ghost" data-job-edit="${id}">Edit as new project</button></div>`;
+  return `${quality}<code class="job-result-path">${escapeHtml(job.result.path)}</code><div class="job-actions"><button class="button secondary" data-job-reveal="${id}">Open folder</button><button class="button secondary" data-job-share="${id}">Export / share</button>${deliveryMarkup(job)}<button class="button ghost" data-job-edit="${id}">Edit as new project</button></div>`;
 }
 
 async function retryCloudDownload(id) {
