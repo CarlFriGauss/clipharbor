@@ -1,6 +1,6 @@
 # ClipHarbor browser companion
 
-Chrome and Edge, Manifest V3. Requires ClipHarbor 0.9.2 or newer on the same
+Chrome and Edge, Manifest V3. Requires ClipHarbor 0.9.3 or newer on the same
 computer. The Windows installer registers the local bridge. No cloud processing,
 browser cookies, browsing history permission, or access to all websites is used.
 
@@ -21,6 +21,10 @@ captions. Choices apply only to that URL and reset when it changes. Facebook
 player translations may not be exposed for download. Right-click downloads use
 source-default audio and no added captions. No browser permission is added.
 
+YouTube translations need a 65-second preparation wait in the same session.
+The popup explains this before starting, and the app's Activity shows the
+countdown with Cancel. Native captions and other sites have no added delay.
+
 MP4 now preserves supported source video codecs instead of forcing an H.264
 encode. Choose X compatibility when that profile is needed. In a dubbed video,
 caption labels distinguish **captions for Arabic audio** from **translated from
@@ -29,7 +33,7 @@ language when a source mixes alternatives from several dubs.
 
 The Windows installer includes this folder at
 `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension`. Alternatively extract
-`ClipHarbor-Extension-0.9.2.zip` from the GitHub release and load its extracted
+`ClipHarbor-Extension-0.9.3.zip` from the GitHub release and load its extracted
 folder. Keep the folder in place. This version is not in either browser's store.
 No browser policies are changed and extensions are never silently force-installed.
 

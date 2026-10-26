@@ -48,6 +48,8 @@ element('#subtitleModeSelect').value='burn';element('#burnSizeSelect').value='so
   ctx.renderSourceTracks({});assert.equal(element('#subtitleTrackField').hidden,true);
   assert.equal(ctx.subtitleDescription({language:'ar-orig',sourceLanguage:'ar',originalCaption:true}),'captions for Arabic audio');
   assert.equal(ctx.subtitleDescription({language:'ar',sourceLanguage:'en',translated:true}),'translated from English');
+  state.inspected={...info,site:'Youtube'};element('#subtitleTrackSelect').value='1';ctx.updateSubtitleFormat();
+  assert.match(element('#subtitleTrackHelp').textContent,/about a minute.*countdown/);
 
   // Run the popup's actual handlers to verify the same behavior across the native bridge.
   elementMap.clear();let messages=[];
