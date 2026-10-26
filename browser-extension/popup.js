@@ -56,6 +56,8 @@ function update() {
   $("subtitleModeField").hidden=!selected;$("burnSizeField").hidden=!selected||!burn;
   $("subtitleHelp").textContent=audioOnly?"Subtitles require a video format.":!selected?"Choose a language to include subtitles.":burn?"Text is permanently visible. Burning requires video encoding; source size keeps resolution and frame rate, not the original bitstream.":"Switchable track inside the video. Turn subtitles on in a compatible player.";
   if(selected&&burn&&$("format").value==="original")$("subtitleHelp").textContent+=" Original source with burning saves an encoded MKV.";
+  const track=selected?inspected?.subtitleTracks?.[Number($("subtitleTrack").value)]:null;
+  if(track?.translated&&/^youtube$/i.test(inspected?.site||""))$("subtitleHelp").textContent+=" YouTube translations need about a minute to prepare; Activity shows the countdown.";
 }
 async function openApp(view = "activity") {
   try { await request("open", {view}); }

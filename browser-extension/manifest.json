@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClipHarbor — Download this video",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "minimum_chrome_version": "120",
   "description": "Send a video or link to your installed ClipHarbor app. Download to your computer or your connected Google Drive.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwS1B111x2eiRGPIayWTvfxkgNl+T2mzdxuHLkWTIL5vXQDpWTau2myjejK7JXYUFyI6YlaOoB6UsF07YAiHxKZgodgaZevpBJYOH4plWaABCj+XUniBwPQlKiGgzGNoS8xu8JVdsq8vWPH7e+C+UDU/Bpp8qy9++3+Yn7VxDa112+iEV3W0gjL8ucclna2bfP6txVe5yT//4u410JqzAuU3scox8FqRzAfjFTNF2/s/uFHzSlsQ3ZS4XGVecv7QmrUMEs14DtPO48r5XEbB10X+5ZnfMlJdq0PYMzdPZGTBDcP7JpxzzscgnyH8bk1cz0dTbRKBL3RHcKY3SVtSD/wIDAQAB",

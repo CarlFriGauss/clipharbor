@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import math
 import re
 import shutil
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
@@ -16,6 +18,31 @@ from .jobs import JobContext
 
 _output_lock = threading.Lock()
 _SUBTITLE_EXTS = {"srt", "vtt", "ass", "ssa", "ttml", "dfxp", "tt"}
+YOUTUBE_TRANSLATION_WAIT = 65
+
+
+def wait_for_youtube_translation(context, info, selected_subtitle, *, clock=None, sleep=None):
+    """YouTube translated captions need the extraction session to age first.
+
+    Waiting between separate Download clicks does not help: each extraction
+    creates another fresh session. Keep this session alive and remain cancellable.
+    See yt-dlp issue #13831 and maintainer PR #15709.
+    """
+    if not selected_subtitle or not selected_subtitle.get("translated"):
+        return
+    if str(info.get("extractor_key") or info.get("extractor") or "").lower() != "youtube":
+        return
+    clock = clock or time.monotonic
+    sleep = sleep or time.sleep
+    deadline = clock() + YOUTUBE_TRANSLATION_WAIT
+    context.write("Allowing the YouTube translation session to age before fetching the selected captions.")
+    while True:
+        remaining = deadline - clock()
+        if remaining <= 0:
+            break
+        context.update(1, f"Preparing YouTube translation · {math.ceil(remaining)} s remaining")
+        sleep(min(1, remaining))
+    context.update(2, "Downloading the selected subtitles")
 
 
 def validate_subtitle_selection(language: str | None, source: str, output_format: str, *, mode="embed", burn_size="source") -> None:
@@ -365,6 +392,7 @@ def _download(context, *, url, destination, working, target_format, x_compatible
                     selected_format = f"{video_format}+{audio_format_id or 'bestaudio'}/{video_format}"
                     ydl.params["format"] = selected_format
                     ydl.format_selector = ydl.build_format_selector(selected_format)
+            wait_for_youtube_translation(context, info, selected_subtitle)
             try:
                 info = ydl.process_ie_result(info, download=True)
             except yt_dlp.utils.DownloadError as error:

@@ -2,7 +2,7 @@
 
 ClipHarbor is a local, browser-based media downloader and non-destructive editor powered by `yt-dlp`, `ffprobe`, and `ffmpeg`.
 
-**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.2/ClipHarbor-Setup-0.9.2-win-x64.exe)
+**Get started:** [Download the Windows installer](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.3/ClipHarbor-Setup-0.9.3-win-x64.exe)
 — no terminal needed. Or use the [automatic terminal setup](#zero-prerequisite-terminal-install)
 for Windows, macOS, or Linux; it installs missing components for you.
 
@@ -32,7 +32,7 @@ installer or automatic terminal setup.
 
 ### Windows installer
 
-[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.2/ClipHarbor-Setup-0.9.2-win-x64.exe)
+[Download ClipHarbor for Windows](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.3/ClipHarbor-Setup-0.9.3-win-x64.exe)
 — or browse [all releases](https://github.com/CarlFriGauss/clipharbor/releases).
 Run the installer, then open **ClipHarbor** from the desktop or Start menu.
 No terminal or separate runtime setup is needed. On first launch, a setup window
@@ -41,7 +41,14 @@ then opens in your browser. Use **Quit app** when finished. Later local editing
 works offline. Windows 10/11 x64 only; macOS/Linux users should use source setup.
 Do not use GitHub's automatic "Source code" ZIP as an installer.
 
-Version **0.9.2** adds **Burn into picture** when you choose subtitles, so the
+Version **0.9.3** fixes the reported YouTube error when downloading translated
+subtitles. ClipHarbor waits 65 seconds in the same YouTube session before fetching
+the translation, with a visible countdown and Cancel in Activity. Simply clicking
+Download again created another fresh session and could repeat the error.
+Original-language captions and downloads without translated captions have no
+added wait. See the [downloader maintainer's explanation](https://github.com/yt-dlp/yt-dlp/issues/13831).
+
+**Burn into picture** remains available when you choose subtitles, so the
 text appears automatically in Media Player and other players. **Switchable
 track** remains available as the fast option. Burning encodes the video again;
 you can keep its source resolution/frame rate or explicitly choose up to
@@ -72,7 +79,7 @@ YouTube requires its own Google upload permission. X and Facebook Page publishin
 require the platform tokens described below. Personal-profile sharing needs no
 Facebook token in ClipHarbor. Each installer user signs in to their own account.
 Advanced source builds need the publisher registration described below.
-[Release notes](packaging/RELEASE-0.9.2.md)
+[Release notes](packaging/RELEASE-0.9.3.md)
 explain the supported destinations and validation. The earlier Tcl/Tk startup
 fix remains included; install over the old version without deleting projects.
 
@@ -88,7 +95,7 @@ Windows security. Download only from this repository's releases. See
 2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 3. Enable **Developer mode**, click **Load unpacked**, and select
    `%LOCALAPPDATA%\Programs\ClipHarbor\browser-extension` (inside your installation).
-   Alternatively, download [ClipHarbor-Extension-0.9.2.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.2/ClipHarbor-Extension-0.9.2.zip),
+   Alternatively, download [ClipHarbor-Extension-0.9.3.zip](https://github.com/CarlFriGauss/clipharbor/releases/download/v0.9.3/ClipHarbor-Extension-0.9.3.zip),
    extract it to a permanent folder, and select that folder.
 4. Pin ClipHarbor to your browser toolbar. Open a video page, click ClipHarbor,
    choose the link, format and **This computer** or **Google Drive**, and download.
@@ -155,7 +162,7 @@ Facebook host or debugger permission.
 
 1. In Chrome/Edge’s Extensions page load the installed
    `%LOCALAPPDATA%\Programs\ClipHarbor\facebook-extension` folder, or extract
-   `ClipHarbor-Facebook-Companion-0.9.2.zip` from the release and load that folder.
+   `ClipHarbor-Facebook-Companion-0.9.3.zip` from the release and load that folder.
 2. Review its stronger **debugger** permission. Chrome does not allow this
    permission to be requested optionally. Although this companion’s code attaches
    only to the Facebook tab it creates, the browser permission itself is powerful
@@ -436,6 +443,16 @@ included; languages are read from the source, never invented. Creator and
 automatic versions can be chosen separately. Track choices reset when the URL or
 source cookies change. The browser extension has the same inspection and menus.
 Right-click downloads use source-default audio with no added captions.
+
+YouTube's translated subtitles need the extraction session to age before they
+can be fetched. Download and the browser popup show a preparation note, and
+Activity counts down the 65-second wait. Cancel remains responsive. Inspection
+itself does not wait. Creator captions and native-language automatic captions
+do not get this delay unless the selected entry is actually a translation.
+Other platforms are unchanged. The wait uses no video processing or extra
+runtime dependency. Source restrictions and genuine rate limits can still apply;
+the app never silently replaces the chosen language or saves a captionless video
+as a successful subtitled download.
 
 After choosing a language, **Subtitle display** offers **Burn into picture**
 (the default in the app and popup) or **Switchable track**. Burned subtitles

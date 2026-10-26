@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 
-VERSION = "0.9.2"
+VERSION = "0.9.3"
 RESOURCE_ROOT = Path(__file__).resolve().parent.parent
 
 

@@ -16,6 +16,7 @@ from yt_dlp.extractor.common import InfoExtractor
 from mediaforge import downloader, web
 from mediaforge.ffmpeg import embed_subtitle, probe
 from mediaforge.jobs import Job, JobContext, JobManager
+from mediaforge.jobs import JobCancelled
 
 
 def context():
@@ -23,6 +24,37 @@ def context():
     job = Job(id="source-track-test", kind="download")
     manager._jobs[job.id] = job
     return JobContext(manager, job.id)
+
+
+def test_youtube_translation_ages_the_same_session_with_countdown():
+    ctx=context();now=[0.];messages=[]
+    original_update=ctx.update
+    def update(progress=None,message=None):
+        messages.append(message);original_update(progress,message)
+    ctx.update=update
+    downloader.wait_for_youtube_translation(ctx,{'extractor_key':'Youtube'},{'translated':True},
+        clock=lambda:now[0],sleep=lambda seconds:now.__setitem__(0,now[0]+seconds))
+    assert now[0]>=60 and now[0]<=70
+    assert '65 s remaining' in messages[0] and '1 s remaining' in messages[-2]
+    assert messages[-1]=='Downloading the selected subtitles'
+
+
+@pytest.mark.parametrize('provider,track', [('Youtube',None),('Youtube',{'translated':False}),
+    ('Facebook',{'translated':True}),('Generic',{'translated':True})])
+def test_native_captions_and_other_sites_do_not_wait(provider,track):
+    downloader.wait_for_youtube_translation(context(),{'extractor_key':provider},track,
+        sleep=lambda seconds:pytest.fail('This caption does not need a session-age delay'))
+
+
+def test_translation_countdown_cancels_promptly_without_starting_media_download():
+    ctx=context();now=[0.]
+    def sleep(seconds):
+        now[0]+=seconds
+        ctx.manager.cancel(ctx.job_id)
+    with pytest.raises(JobCancelled):
+        downloader.wait_for_youtube_translation(ctx,{'extractor_key':'Youtube'},{'translated':True},
+            clock=lambda:now[0],sleep=sleep)
+    assert now[0]==1
 
 
 def test_caption_metadata_keeps_creator_and_auto_translations_without_urls():
